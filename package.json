@@ -6,10 +6,13 @@
 	"type": "module",
 	"scripts": {
 		"setup": "node setup.mjs",
+		"predev": "node scripts/embed-skill.mjs",
 		"dev": "node esbuild.config.mjs",
+		"prebuild": "node scripts/embed-skill.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "biome check .",
+		"pretest": "node scripts/embed-skill.mjs",
 		"test": "vitest run"
 	},
 	"keywords": [],

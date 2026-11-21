@@ -1,7 +1,14 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
 	"files": {
-		"includes": ["src/**/*.ts", "*.mjs", "*.json"]
+		"includes": [
+			"src/**/*.ts",
+			"tests/**/*.ts",
+			"scripts/*.mjs",
+			"*.mjs",
+			"*.json",
+			"!src/skill-files.gen.json"
+		]
 	},
 	"linter": {
 		"enabled": true
