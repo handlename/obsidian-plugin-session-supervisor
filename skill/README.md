@@ -27,7 +27,7 @@ Run the skill from any Claude Code session outside a git repository and ask it t
 The session asks for the supervisor directory (default `~/supervisor`), runs `setup`, and then walks you through the vault interview (vault location, dashboard note, note templates, and the properties a done or cancelled note gets). `setup` is idempotent and can be run directly:
 
 ```bash
-python3 skills/session-supervisor/scripts/state_tool.py setup --dir "$HOME/supervisor"
+python3 "<vault>/.obsidian/plugins/session-supervisor/skill/scripts/state_tool.py" setup --dir "$HOME/supervisor"
 ```
 
 It creates, among others:
@@ -108,7 +108,7 @@ Tasks can be grouped into a **project**: a context document (a GitHub issue or a
 The deterministic parts (validated atomic commits, status derivation, note writing, report parsing) live in `scripts/state_tool.py`. Run its tests with:
 
 ```bash
-python3 -m unittest skills/session-supervisor/tests/test_state_tool.py
+python3 -m pytest skill/tests -q  # from the repository root
 ```
 
 See [SKILL.md](SKILL.md) for the full procedure and [references/](references/) for the state schema and the worker, manager, and observer briefs.

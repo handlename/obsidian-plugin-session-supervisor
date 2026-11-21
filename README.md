@@ -11,7 +11,14 @@ The plugin:
 
 ## Install
 
-Add `handlename/obsidian-plugin-session-supervisor` in [BRAT](https://github.com/TfTHacker/obsidian42-brat) and enable the plugin.
+1. Obsidian plugin: add `handlename/obsidian-plugin-session-supervisor` in [BRAT](https://github.com/TfTHacker/obsidian42-brat) and enable the plugin. On desktop it extracts the skill body to `<vault>/.obsidian/plugins/session-supervisor/skill/`.
+2. Claude Code skill: install the thin `session-supervisor` skill (`skills/session-supervisor/SKILL.md`), which points the agent to the extracted body:
+
+   ```text
+   /plugin install session-supervisor --marketplace handlename/obsidian-plugin-session-supervisor
+   ```
+
+   On Claude Code before 2.1.275, run `/plugin marketplace add handlename/obsidian-plugin-session-supervisor` and then `/plugin install session-supervisor@session-supervisor`.
 
 ## Development
 

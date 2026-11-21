@@ -6,6 +6,8 @@ Date: 2026-11-21
 
 Accepted
 
+Amended by [8. Distribute the thin SKILL.md from this repository](0008-distribute-the-thin-skill-md-from-this-repository.md)
+
 ## Context
 
 The session-supervisor skill lived in handlename/agent-skills. Installing or updating it meant installing and configuring Templater, binding hotkeys for its scripts (sv-status.md, sv-project.md), enabling a CSS snippet, and copying files from the skill by hand.
