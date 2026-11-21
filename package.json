@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-plugin-session-supervisor",
-	"version": "1.0.0",
+	"version": "0.1.0",
 	"description": "Commands, styles, and the bundled session-supervisor skill for supervising Claude Code worker sessions from your vault.",
 	"main": "main.js",
 	"type": "module",
