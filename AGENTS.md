@@ -249,3 +249,8 @@ this.registerInterval(window.setInterval(() => { /* ... */ }, 1000));
 - Developer policies: https://docs.obsidian.md/Developer+policies
 - Plugin guidelines: https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines
 - Style guide: https://help.obsidian.md/style-guide
+
+## Decisions
+
+- Architectural decisions are recorded as ADRs under `doc/adr` with [`adrs`](https://github.com/joshrotenberg/adrs). Record a new decision with `adrs new "<title>"`.
+- Do not edit an accepted ADR. Replace a decision with `adrs new --supersedes <N> "<title>"`.
