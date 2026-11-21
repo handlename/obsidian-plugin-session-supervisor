@@ -1,7 +1,7 @@
 {
 	"id": "session-supervisor",
 	"name": "Session Supervisor",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"minAppVersion": "1.15.0",
 	"description": "Commands, styles, and the bundled session-supervisor skill for supervising Claude Code worker sessions from your vault.",
 	"author": "handlename",
