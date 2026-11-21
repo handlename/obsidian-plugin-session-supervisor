@@ -1,5 +1,8 @@
 # Changelog
 
+## [0.2.0](https://github.com/handlename/obsidian-plugin-session-supervisor/compare/0.1.0...0.2.0) - 2026-11-21
+- Distribute the thin session-supervisor skill from this repository by @handlename in https://github.com/handlename/obsidian-plugin-session-supervisor/pull/10
+
 ## [0.1.0](https://github.com/handlename/obsidian-plugin-session-supervisor/commits/0.1.0) - 2026-11-21
 - TASK-A1: import the skill and set up the plugin repository by @handlename in https://github.com/handlename/obsidian-plugin-session-supervisor/pull/2
 - TASK-A2: share the transition table, fixtures, and pure functions by @handlename in https://github.com/handlename/obsidian-plugin-session-supervisor/pull/3
