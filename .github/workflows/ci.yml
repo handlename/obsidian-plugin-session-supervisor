@@ -26,8 +26,14 @@ jobs:
             - run: npm test
             - run: npm run build
             - run: python3 -m pip install pytest
-            - run: python3 -m pytest skill/tests -q
+            # The guard always allows writes under /tmp, so the guard tests need temp dirs elsewhere (macOS's default).
+            - name: Run pytest
+              env:
+                  TMPDIR: ${{ runner.temp }}
+              run: python3 -m pytest skill/tests -q
             - name: Regenerated fixtures match the committed ones
+              env:
+                  TMPDIR: ${{ runner.temp }}
               run: SV_REGEN_FIXTURES=1 python3 -m pytest skill/tests -q -k Fixture && git diff --exit-code skill/tests/fixtures
             - name: Install adrs
               env:
