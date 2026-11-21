@@ -4,22 +4,37 @@ on:
     pull_request:
         branches: ["**"]
 
+env:
+    ADRS_VERSION: v0.13.0
+
 jobs:
     build:
         runs-on: ubuntu-latest
 
-        strategy:
-            matrix:
-                node-version: [22.x]
-                # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
-
         steps:
             - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-            - name: Use Node.js ${{ matrix.node-version }}
+            - name: Use Node.js 22.x
               uses: actions/setup-node@53b83947a5a98c8d113130e565377fae1a50d02f # v6.3.0
               with:
-                  node-version: ${{ matrix.node-version }}
+                  node-version: 22.x
                   cache: "npm"
+            - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+              with:
+                  python-version: "3.x"
             - run: npm ci
-            - run: npm run build --if-present
             - run: npm run lint
+            - run: npm test
+            - run: npm run build
+            - run: python3 -m pip install pytest
+            - run: python3 -m pytest skill/tests -q
+            - name: Regenerated fixtures match the committed ones
+              run: SV_REGEN_FIXTURES=1 python3 -m pytest skill/tests -q -k Fixture && git diff --exit-code skill/tests/fixtures
+            - name: Install adrs
+              env:
+                  GH_TOKEN: ${{ github.token }}
+              run: |
+                  gh release download "$ADRS_VERSION" -R joshrotenberg/adrs -p 'adrs-x86_64-unknown-linux-gnu.tar.xz*' -D "$RUNNER_TEMP"
+                  cd "$RUNNER_TEMP" && sha256sum -c adrs-x86_64-unknown-linux-gnu.tar.xz.sha256
+                  tar -xJf adrs-x86_64-unknown-linux-gnu.tar.xz --strip-components=1 -C "$RUNNER_TEMP"
+                  echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+            - run: adrs doctor
