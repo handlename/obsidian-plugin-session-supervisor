@@ -1,0 +1,66 @@
+{
+  "project-done-proposed-en": {
+    "flags": {
+      "done_proposed": true,
+      "not_proposed": false
+    },
+    "kind": "project",
+    "managed": true
+  },
+  "project-done-proposed-ja": {
+    "flags": {
+      "done_proposed": true,
+      "not_proposed": false
+    },
+    "kind": "project",
+    "managed": true
+  },
+  "project-open": {
+    "flags": {
+      "done_proposed": false,
+      "not_proposed": true
+    },
+    "kind": "project",
+    "managed": true
+  },
+  "task-done-only": {
+    "flags": {
+      "held_only": true,
+      "unheld": false
+    },
+    "kind": "task",
+    "managed": true
+  },
+  "task-done-only-legacy": {
+    "flags": {
+      "held_only": true,
+      "unheld": false
+    },
+    "kind": "task",
+    "managed": true
+  },
+  "task-done-st-unchecked": {
+    "flags": {
+      "held_only": false,
+      "unheld": true
+    },
+    "kind": "task",
+    "managed": true
+  },
+  "task-ua-open": {
+    "flags": {
+      "held_only": false,
+      "unheld": true
+    },
+    "kind": "task",
+    "managed": true
+  },
+  "task-ua-open-legacy": {
+    "flags": {
+      "held_only": false,
+      "unheld": true
+    },
+    "kind": "task",
+    "managed": true
+  }
+}

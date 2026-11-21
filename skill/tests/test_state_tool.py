@@ -5310,8 +5310,7 @@ class NotesScanCliTest(unittest.TestCase):
 
 
 def shortcut_moves():
-    text = (SKILL / "assets" / "sv-status.md").read_text(encoding="utf-8")
-    return json.loads(re.search(r"const MOVES = (\[.*?\]);", text, re.S).group(1))
+    return json.loads((SKILL.parent / "src" / "moves.json").read_text(encoding="utf-8"))
 
 
 def pair_values(value):
@@ -7871,3 +7870,82 @@ class LauncherPrefixTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+REGEN = os.environ.get("SV_REGEN_FIXTURES") == "1"
+
+
+def check_fixture(case, path, text):
+    """Write the fixture with SV_REGEN_FIXTURES=1; otherwise compare against the committed one (shared with vitest)."""
+    if REGEN:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+    case.assertEqual(path.read_text(encoding="utf-8"), text, path.name)
+
+
+class DashboardFixtureTest(unittest.TestCase):
+    """src/dashboard.ts ports supervisor_note: tests/dashboard.test.ts checks it against the same fixtures."""
+    CASES = {"default": {"templates": st.TEMPLATES_DIR}, "root": {"templates": st.TEMPLATES_DIR, "root": "supervisor/nature"},
+             "notemplates": {"templates": None}}
+
+    def test_matches_fixtures(self):
+        for name, kwargs in self.CASES.items():
+            with self.subTest(name=name):
+                check_fixture(self, FIXTURES / f"dashboard-{name}.md", st.supervisor_note(**kwargs))
+
+
+class GuardFixtureTest(unittest.TestCase):
+    """Notes written by state_tool for the `when` guards of src/moves.ts (tests/moves.test.ts). The note bodies are
+    generated; the expected flags are written here by hand, since deriving them would reimplement the guards."""
+    UID = "20261110_090000"
+    ASK = {"id": "UA-0001", "kind": "ask", "description": "どちらにしますか"}
+    DONE = {"id": "UA-0002", "kind": "auto", "detector": "task_done", "description": "完了を確認してください"}
+    ST = {"id": "ST-0003", "assignee": "agent", "text": "テストを書く"}
+
+    @staticmethod
+    def project_done(text):
+        return {"id": "UA-0004", "kind": "ask", "description": f"{text}: 終わりました"}
+
+    # name: (kind, ops, expected flags)
+    SCENARIOS = {
+        "task-ua-open": ("task", [("ua_add", ASK)], {"held_only": False, "unheld": True}),
+        "task-done-only": ("task", [("ua_add", DONE)], {"held_only": True, "unheld": False}),
+        "task-done-st-unchecked": ("task", [("ua_add", DONE), ("st_add", ST)], {"held_only": False, "unheld": True}),
+        "project-done-proposed-ja": ("project", [("ua_add", "プロジェクトの完了を確認してください")],
+                                     {"done_proposed": True, "not_proposed": False}),
+        "project-done-proposed-en": ("project", [("ua_add", "Confirm that the project is done")],
+                                     {"done_proposed": True, "not_proposed": False}),
+        "project-open": ("project", [("ua_add", ASK)], {"done_proposed": False, "not_proposed": True}),
+    }
+    # Notes from before 0.65.3 have the metadata line right below the heading; state_tool no longer writes them.
+    LEGACY = {"task-done-only-legacy": "task-done-only", "task-ua-open-legacy": "task-ua-open"}
+
+    def note(self, kind, ops):
+        text = st.new_note_text(self.UID, "t", kind, "in progress", "user", NOTE_NOW)
+        text = st.set_props(text, {"task_id" if kind == "task" else "project_id": "T-1" if kind == "task" else "P-1"})
+        built = []
+        for name, arg in ops:
+            if name == "ua_add":
+                built.append({"op": "ua_add", "ua": self.project_done(arg) if isinstance(arg, str) else arg})
+            else:
+                built.append({"op": name, "st": arg})
+        text, _, problems = st.apply_note_ops(text, built, NOTE_NOW, 1)
+        self.assertEqual(problems, [])
+        return text
+
+    def test_matches_fixtures(self):
+        out = FIXTURES / "notes-gen"
+        expected = {}
+        notes = {}
+        for name, (kind, ops, flags) in self.SCENARIOS.items():
+            notes[name] = self.note(kind, ops)
+            expected[name] = {"kind": kind, "managed": True, "flags": flags}
+        for name, source in self.LEGACY.items():
+            legacy = re.sub(r"^(### \[UA-\d+\] .*)\n\n(<!-- sv )", r"\1\n\2", notes[source], flags=re.M)
+            self.assertNotEqual(legacy, notes[source])
+            notes[name] = legacy
+            expected[name] = expected[source]
+        for name, text in notes.items():
+            with self.subTest(name=name):
+                check_fixture(self, out / f"{name}.md", text)
+        check_fixture(self, out / "expected.json", json.dumps(expected, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
