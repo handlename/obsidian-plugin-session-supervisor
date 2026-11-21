@@ -6001,7 +6001,7 @@ class MigrateExportTest(unittest.TestCase):
         self.assertEqual(json.loads(out)["tasks_without_workers"], [state["tasks"][0]["id"]])
 
     def test_main_digest_reads_the_export(self):
-        main_tool = subprocess.run(["git", "-C", str(SKILL), "show", "main:skills/session-supervisor/scripts/state_tool.py"],
+        main_tool = subprocess.run(["git", "-C", str(SKILL), "show", "main:skill/scripts/state_tool.py"],
                                    capture_output=True, text=True)
         if main_tool.returncode != 0:
             self.skipTest("main branch not available")
