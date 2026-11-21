@@ -2176,7 +2176,7 @@ def note_kind(props):
 def new_note_text(uid, title, kind, status, assignee, now, request="", parent=None, follows=None, original=None,
                   proposed_by=None, parent_title=None):
     """Text of a new task or project note in the create-task format. parent and follows are note uids; parent_title (the
-    project's title) becomes the alias of the parent link, as sv-project.md writes it. original (the
+    project's title) becomes the alias of the parent link, as the plugin's project command writes it. original (the
     chat message the request was written from) follows the request as a folded 依頼の原文 callout. proposed_by is the
     P-id of the project manager whose proposal the note holds."""
     if kind not in ("task", "project"):
@@ -4049,7 +4049,7 @@ def _parent_uids(value):
 
 def parent_project_id(state, parent):
     """P-id of the open project whose note the parent property links ([[uid]], [[path|alias]], a path, or a list of
-    those), or None. sv-project.md writes [[<path without .md>|<title>]]."""
+    those), or None. The plugin's project command writes [[<path without .md>|<title>]]."""
     names = set()
     for value in parent if isinstance(parent, list) else [parent]:
         if isinstance(value, str):
@@ -4876,7 +4876,7 @@ _ASSIGNEE_IS = """'assignee == "{}"'"""
 
 # The project note's own tasks on two kanbans by assignee, like the dashboard: `this` is the note that holds the
 # block, and a link equals the file it resolves to, so `parent == this` matches both `[[<uid>]]` (state_tool) and
-# `[[<path>|<title>]]` (sv-project.md). Cards of a column are sorted by priority, then by the last change of the task note.
+# `[[<path>|<title>]]` (the plugin's project command). Cards of a column are sorted by priority, then by the last change of the task note.
 PROJECT_TASKS_FILTER = "'parent == this'"
 PROJECT_TASKS_SECTION = "## タスク\n\n" + "\n".join(
     f"### {heading}\n\n" + _kanban_base(name, (_NOT_PROJECT, PROJECT_TASKS_FILTER, _ASSIGNEE_IS.format(who)), None,
@@ -4902,41 +4902,10 @@ def legacy_supervisor_notes(templates, root=None):
         supervisor_note(templates, KANBAN_ORDER, "", "", root),)
 
 
-VERSION_MARK = "session-supervisor-version: "
-VERSION_MARK_RE = re.compile(re.escape(VERSION_MARK) + r"(\d+)\.(\d+)\.(\d+)")
-
-
-def plugin_version():
-    """(major, minor, patch) of the plugin this skill belongs to (.claude-plugin/plugin.json), or None when the skill was
-    installed without it."""
-    try:
-        version = json.loads((HERE.parents[2] / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"]
-        return tuple(int(n) for n in version.split("."))
-    except (OSError, ValueError, KeyError, TypeError, AttributeError, IndexError):
-        return None
-
-
-def _stamped(name, text, version):
-    """text of the vault file name with the version mark: a comment after the Templater opening line of a script, at
-    the top of the CSS snippet. Without a version, text unchanged."""
-    if version is None:
-        return text
-    mark = VERSION_MARK + ".".join(map(str, version))
-    if name.endswith(".css"):
-        return f"/* {mark} */\n{text}"
-    head, _, rest = text.partition("\n")
-    return f"{head}\n// {mark}\n{rest}"
-
-
-def _stamp_of(text):
-    m = VERSION_MARK_RE.search(text[:500])
-    return tuple(int(n) for n in m.groups()) if m else None
-
-
 def _setup_vault(supervisor_dir):
-    """Create the dashboard note when it is missing; never overwrite it unless it is an unedited earlier version. Templates are built with the user (references/setup.md, Vault interview),
-    except the Templater scripts sv-status.md and sv-project.md, which are placed in the template folder, and the CSS
-    snippet sv-kanban.css in .obsidian/snippets (created, exists or updated)."""
+    """Create the dashboard note when it is missing; never overwrite it unless it is an unedited earlier version.
+    Templates are built with the user (references/setup.md, Vault interview); the commands and styles come from the
+    Obsidian plugin."""
     vault, dashboard, templates = vault_locations(supervisor_dir)
     root = notes_root(supervisor_dir)[1]
     if root:
@@ -4953,30 +4922,6 @@ def _setup_vault(supervisor_dir):
             path.parent.mkdir(parents=True, exist_ok=True)
             _write_atomic(str(path), text)
             report.append(("created", path))
-    # The scripts are overwritten like .supervisor/state_tool.py, so sv-status's MOVES stay in step with user_transition.
-    # The kanban snippet goes only into a vault Obsidian has opened; setup never creates .obsidian.
-    copies = [(name, Path(vault) / templates / name) for name in ("sv-status.md", "sv-project.md")]
-    if (Path(vault) / ".obsidian").is_dir():
-        copies.append(("sv-kanban.css", Path(vault) / ".obsidian" / "snippets" / "sv-kanban.css"))
-    # They are shared by every machine that syncs the vault: a copy stamped by a newer plugin is never overwritten.
-    version = plugin_version()
-    for name, dest in copies:
-        src = HERE.parent / "assets" / name
-        if not src.exists():
-            report.append(("skipped", dest))
-            continue
-        text = _stamped(name, src.read_text(encoding="utf-8"), version)
-        old = dest.read_bytes() if dest.exists() else None
-        theirs = _stamp_of(old.decode("utf-8", "replace")) if old is not None else None
-        if version and theirs and theirs > version:
-            report.append(("newer", f"{dest} ({'.'.join(map(str, theirs))} > {'.'.join(map(str, version))}; "
-                                    f"update the plugin on this machine)"))
-            continue
-        status = "exists" if old == text.encode("utf-8") else ("updated" if old is not None else "created")
-        if status != "exists":
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            _write_atomic(str(dest), text)
-        report.append((status, dest))
     # Note templates are the user's: setup only reports those whose notes would differ from the ones state_tool creates.
     report += [("outdated", f"{path} ({'; '.join(errors)})") for path, errors in outdated_templates(Path(vault) / templates)]
     return report
@@ -4984,7 +4929,7 @@ def _setup_vault(supervisor_dir):
 
 def _setup_chat(supervisor_dir, script):
     """<dir>/chat, where the free-form session sv-chat runs: its guard (role chat) and its brief CLAUDE.md, which is
-    overwritten when it differs, like sv-status.md, so that it stays in step with the chat subcommands."""
+    overwritten when it differs, so that it stays in step with the chat subcommands."""
     chat = Path(supervisor_dir) / CHAT_DIR
     settings_path = chat / ".claude" / "settings.json"
     settings = _read_settings(settings_path, ("PreToolUse",), "setup")

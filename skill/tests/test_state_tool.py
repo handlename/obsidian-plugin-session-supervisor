@@ -1622,14 +1622,13 @@ class SetupTest(unittest.TestCase):
     def hooks(self, target, event="SessionStart"):
         return json.loads((target / ".claude" / "settings.json").read_text(encoding="utf-8"))["hooks"][event]
 
-    def test_creates_ten_files_with_matcher(self):
+    def test_creates_eight_files_with_matcher(self):
         target = self.root / "sup"
         proc = self.setup_dir(target)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(self.files(target), [".claude/settings.json", ".supervisor/state_tool.py", "CLAUDE.md",
                                               "chat/.claude/settings.json", "chat/CLAUDE.md", "state.json", "sv.sh",
-                                              "vault/Supervisor.md", "vault/_templates/sv-project.md",
-                                              "vault/_templates/sv-status.md"])
+                                              "vault/Supervisor.md"])
         entries = self.hooks(target)
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["matcher"], "startup|resume|clear|compact")
@@ -5406,14 +5405,6 @@ class StatusShortcutTest(unittest.TestCase):
                 status, assignee = value.split("/")
                 self.assertIn(status, st.NOTE_STATUSES)
                 self.assertIn(assignee, st.ASSIGNEES)
-        text = (SKILL / "assets" / "sv-status.md").read_text(encoding="utf-8")
-        self.assertIsNone(re.search(r"/Users/|~/|supervisor/vault", text))
-
-    def test_inserts_nothing_at_the_cursor(self):
-        text = (SKILL / "assets" / "sv-status.md").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("<%*"))
-        self.assertTrue(text.endswith("-%>\n"))
-
 
 class RequestOriginalTest(unittest.TestCase):
     ORIGINAL = "README の typo を直して。\n> 引用した行\n\n  先頭の空白。push して PR まで"
@@ -5661,7 +5652,7 @@ class SetupVaultTest(unittest.TestCase):
             self.assertIn("groupOrder: [backlog, in progress, pending, done, archived]", (vault / "Supervisor.md").read_text(encoding="utf-8"))
             self.assertEqual(dashboard.count("order: [formula.title, summary, priority, subtasks, task_id, project_id, created_at]"), 2)
             self.assertIn('file.hasTag("supervised")', dashboard)
-            self.assertEqual(sorted(p.name for p in (vault / "_templates").iterdir()), ["sv-project.md", "sv-status.md"])
+            self.assertEqual(list(vault.rglob("sv-*")), [])
             self.assertFalse((vault / ".obsidian").exists())
             self.assertIn("vault/", (target / "CLAUDE.md").read_text(encoding="utf-8"))
             (vault / "Supervisor.md").write_text("mine\n", encoding="utf-8")
@@ -5669,73 +5660,6 @@ class SetupVaultTest(unittest.TestCase):
             self.assertTrue(all(l.startswith("exists:") for l in proc.stdout.splitlines()), proc.stdout)
             self.assertEqual((vault / "Supervisor.md").read_text(encoding="utf-8"), "mine\n")
             self.assertEqual(st._index_vault(str(vault)), ({}, {}))
-
-    def test_places_the_status_shortcut(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "sup"
-            shortcut = target / "vault" / "_templates" / "sv-status.md"
-            asset = st._stamped("sv-status.md", (SKILL / "assets" / "sv-status.md").read_text(encoding="utf-8"), st.plugin_version())
-            reports = []
-            for change in (None, None, "mine\n"):
-                if change:
-                    shortcut.write_text(change, encoding="utf-8")
-                proc = subprocess.run([sys.executable, str(SCRIPT), "setup", "--dir", str(target)], capture_output=True, text=True)
-                self.assertEqual(proc.returncode, 0, proc.stderr)
-                reports += [l.split(":")[0] for l in proc.stdout.splitlines() if l.endswith("sv-status.md")]
-                self.assertEqual(shortcut.read_text(encoding="utf-8"), asset)
-            self.assertEqual(reports, ["created", "exists", "updated"])
-
-    def test_places_the_kanban_snippet_only_in_an_opened_vault(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "sup"
-            snippet = target / "vault" / ".obsidian" / "snippets" / "sv-kanban.css"
-            asset = st._stamped("sv-kanban.css", (SKILL / "assets" / "sv-kanban.css").read_text(encoding="utf-8"), st.plugin_version())
-            reports = []
-            for change in (None, "obsidian", None, "mine\n"):
-                if change == "obsidian":
-                    (target / "vault" / ".obsidian").mkdir()
-                elif change:
-                    snippet.write_text(change, encoding="utf-8")
-                proc = subprocess.run([sys.executable, str(SCRIPT), "setup", "--dir", str(target)], capture_output=True, text=True)
-                self.assertEqual(proc.returncode, 0, proc.stderr)
-                reports += [l.split(":")[0] for l in proc.stdout.splitlines() if l.endswith("sv-kanban.css")]
-            self.assertEqual(snippet.read_text(encoding="utf-8"), asset)
-            self.assertEqual(reports, ["created", "exists", "updated"])
-
-    def test_vault_copies_carry_the_plugin_version_and_a_newer_one_is_kept(self):
-        version = st.plugin_version()
-        self.assertEqual(version, tuple(int(n) for n in json.loads(
-            (SKILL.parent.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))["version"].split(".")))
-        asset = (SKILL / "assets" / "sv-status.md").read_text(encoding="utf-8")
-        stamped = st._stamped("sv-status.md", asset, version)
-        self.assertTrue(stamped.startswith("<%*\n// session-supervisor-version: "))
-        self.assertEqual(st._stamp_of(stamped), version)
-        self.assertEqual(st._stamped("sv-kanban.css", "x\n", (1, 2, 3)), "/* session-supervisor-version: 1.2.3 */\nx\n")
-        self.assertEqual(st._stamped("sv-status.md", asset, None), asset)
-        with tempfile.TemporaryDirectory() as tmp:
-            target = Path(tmp) / "sup"
-            shortcut = target / "vault" / "_templates" / "sv-status.md"
-            subprocess.run([sys.executable, str(SCRIPT), "setup", "--dir", str(target)], capture_output=True, text=True, check=True)
-            # Another machine with a newer plugin wrote it through the synced vault: setup keeps it and warns.
-            newer = (version[0], version[1] + 1, 0)
-            theirs = st._stamped("sv-status.md", "<%*\nnewer\n%>\n", newer)
-            shortcut.write_text(theirs, encoding="utf-8")
-            proc = subprocess.run([sys.executable, str(SCRIPT), "setup", "--dir", str(target)], capture_output=True, text=True)
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-            self.assertIn(f"newer: {shortcut} ({'.'.join(map(str, newer))} > {'.'.join(map(str, version))}; "
-                          f"update the plugin on this machine)", proc.stdout)
-            self.assertEqual(shortcut.read_text(encoding="utf-8"), theirs)
-            # An older one is overwritten.
-            shortcut.write_text(st._stamped("sv-status.md", "<%*\nolder\n%>\n", (0, 1, 0)), encoding="utf-8")
-            proc = subprocess.run([sys.executable, str(SCRIPT), "setup", "--dir", str(target)], capture_output=True, text=True)
-            self.assertIn(f"updated: {shortcut}", proc.stdout)
-            self.assertEqual(shortcut.read_text(encoding="utf-8"), stamped)
-            # Without a plugin version (a skill installed without the plugin) it copies the asset as it is, as before.
-            shortcut.write_text(theirs, encoding="utf-8")
-            with mock.patch.object(st, "plugin_version", return_value=None):
-                st._setup_vault(str(target))
-            self.assertEqual(shortcut.read_text(encoding="utf-8"), asset)
-
 
 class DigestFallbackTest(unittest.TestCase):
     def test_missing_vault_and_held_notes(self):
@@ -5779,15 +5703,6 @@ class ParentProjectTest(unittest.TestCase):
             self.assertEqual(st.parent_project_id(state, parent), want, parent)
         project["close"] = {"at": NOW, "reason": "x"}
         self.assertIsNone(st.parent_project_id(state, f"[[{U2}]]"))
-
-    def test_project_picker_is_a_templater_script(self):
-        text = (SKILL / "assets" / "sv-project.md").read_text(encoding="utf-8")
-        self.assertTrue(text.startswith("<%*"))
-        self.assertTrue(text.endswith("-%>\n"))
-        self.assertIn("(プロジェクトなし)", text)
-        self.assertIn("app.fileManager.renameFile(file, dest)", text)
-        self.assertIn("tp.system.prompt(\"タイトル\"", text)
-
 
 class ProposalNoteTest(unittest.TestCase):
     def setUp(self):
@@ -7027,7 +6942,7 @@ class ObsidianVaultTest(unittest.TestCase):
         with self.assertRaisesRegex(st.StateError, "nested"):
             st.vault_locations(str(self.sup))
 
-    def test_setup_creates_only_the_dashboard_and_the_shortcut_in_the_configured_vault(self):
+    def test_setup_creates_only_the_dashboard_in_the_configured_vault(self):
         memo = self.root / "memo"
         self.claude_md(f"## Locations\n- vault: {memo}\n- dashboard: _sv/Board.md\n- templates: _plugin/type\n")
         proc = subprocess.run([sys.executable, str(SCRIPT), "setup", "--dir", str(self.sup)], capture_output=True, text=True)
@@ -7036,8 +6951,7 @@ class ObsidianVaultTest(unittest.TestCase):
         self.assertIn('file.hasTag("supervised")', board)
         self.assertIn("""'!file.inFolder("_plugin/type")'""", board)
         self.assertEqual(sorted(p.relative_to(memo).as_posix() for p in memo.rglob("*")),
-                         ["_plugin", "_plugin/type", "_plugin/type/sv-project.md", "_plugin/type/sv-status.md", "_sv",
-                          "_sv/Board.md"])
+                         ["_sv", "_sv/Board.md"])
         self.assertFalse((self.sup / "vault").exists())
 
     def test_index_skips_the_dashboard_and_the_template_folder(self):
