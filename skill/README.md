@@ -12,7 +12,7 @@ The supervisor itself never edits, commits, or pushes. Changes go to workers, ob
 
 *   **Claude Code** (`claude`), running inside **Herdr** with `hc` (herdr-core) installed.
 *   **Python 3** (standard library only) for `scripts/state_tool.py`.
-*   **Obsidian** with the core **Bases** plugin for the kanban dashboard. The **Templater** plugin is optional; it powers the status shortcut and the project picker.
+*   **Obsidian** with the core **Bases** plugin for the kanban dashboard, and the [Session Supervisor](https://github.com/handlename/obsidian-plugin-session-supervisor) plugin (installed with BRAT) for the status and project commands and the kanban styles.
 
 ---
 
