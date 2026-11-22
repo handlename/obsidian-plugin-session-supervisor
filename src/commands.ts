@@ -15,7 +15,7 @@ import {
 	parentLink,
 	uidPath,
 } from "./project";
-import { pick, prompt } from "./ui";
+import { closeRenamePrompts, pick, prompt } from "./ui";
 
 type Frontmatter = Record<string, unknown>;
 
@@ -66,10 +66,12 @@ export async function changeStatus(app: App): Promise<void> {
 }
 
 /**
- * Asks the title of a task note, picks its project (or none) in the same root, writes `title` and `parent`, and
+ * Picks the project (or none) of a task note in its root, then asks its title, writes `title` and `parent`, and
  * renames the note to its uid. A note outside every root (for example one a template plugin created at the vault's
- * top) first gets a root to move into, as <root>/YYYY/MM. A project note (tagged `project`) gets the same title, root,
+ * top) first gets a root to move into, as <root>/YYYY/MM. A project note (tagged `project`) gets the same root, title,
  * and rename but no project. Cancelling the title keeps the title; cancelling a picker changes nothing.
+ * Obsidian's own "Note title" rename dialog, which Templater opens for a note it creates, is closed first so that the
+ * title is asked once.
  */
 export async function setTitleAndProject(app: App): Promise<void> {
 	const file = app.workspace.getActiveFile();
@@ -82,12 +84,7 @@ export async function setTitleAndProject(app: App): Promise<void> {
 		new Notice("取り込み済みのタスクのプロジェクトは変えられません");
 		return;
 	}
-	const typed = await prompt(
-		app,
-		"タイトル",
-		defaultTitle(own.title, file.basename),
-	);
-	const newTitle = typed?.trim();
+	closeRenamePrompts();
 	const notes = app.vault
 		.getMarkdownFiles()
 		.filter((f) => f.path !== file.path)
@@ -133,6 +130,12 @@ export async function setTitleAndProject(app: App): Promise<void> {
 						: "(プロジェクトなし)",
 			);
 	if (choice === null) return;
+	const typed = await prompt(
+		app,
+		"タイトル",
+		defaultTitle(own.title, file.basename),
+	);
+	const newTitle = typed?.trim();
 	await app.fileManager.processFrontMatter(file, (front: Frontmatter) => {
 		if (choice?.f) {
 			front.parent = parentLink(

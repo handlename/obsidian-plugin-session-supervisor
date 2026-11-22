@@ -11,10 +11,18 @@ vi.mock("obsidian", () => ({
 	},
 }));
 
+const calls: string[] = [];
 const pick = vi.fn();
 vi.mock("../src/ui", () => ({
-	pick: (...args: unknown[]) => pick(...args),
-	prompt: async () => "New project",
+	closeRenamePrompts: () => calls.push("closeRenamePrompts"),
+	pick: (...args: unknown[]) => {
+		calls.push("pick");
+		return pick(...args);
+	},
+	prompt: async () => {
+		calls.push("prompt");
+		return "New project";
+	},
 }));
 
 const { setTitleAndProject } = await import("../src/commands");
@@ -67,7 +75,10 @@ function fakeApp(active: ReturnType<typeof fakeFile>) {
 }
 
 describe("setTitleAndProject", () => {
-	beforeEach(() => pick.mockReset());
+	beforeEach(() => {
+		pick.mockReset();
+		calls.length = 0;
+	});
 
 	it("asks a project note at the vault top for its root, not a project", async () => {
 		const note = fakeFile("Untitled.md", {
@@ -111,7 +122,7 @@ describe("setTitleAndProject", () => {
 		});
 		// biome-ignore lint/suspicious/noExplicitAny: fake app
 		await setTitleAndProject(app as any);
-		expect(pick).toHaveBeenCalledTimes(2);
+		expect(calls).toEqual(["closeRenamePrompts", "pick", "pick", "prompt"]);
 		expect(note.fm.parent).toBe("[[sv/personal/2026/10/a|A]]");
 	});
 });
