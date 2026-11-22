@@ -96,3 +96,14 @@ export function prompt(
 		new PromptModal(app, title, initial, resolve).open(),
 	);
 }
+
+/** Closes Obsidian's rename dialogs (Templater opens one for each note it creates). */
+export function closeRenamePrompts(): void {
+	activeDocument
+		.querySelectorAll<HTMLElement>(
+			".modal.mod-file-rename > .modal-header-button, .modal.mod-file-rename > .modal-close-button",
+		)
+		.forEach((button) => {
+			button.click();
+		});
+}
