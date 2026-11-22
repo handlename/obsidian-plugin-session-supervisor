@@ -2536,10 +2536,10 @@ class StdlibOnlyTest(unittest.TestCase):
 
 
 
-PROJECT_DIR = "/Users/handlename/supervisor-work/P-0001-nature-mcp"
+PROJECT_DIR = "/Users/handlename/supervisor-work/P-0001-work-mcp"
 
 
-def add_project(state, pid="P-0001", name="Nature MCP", directory=PROJECT_DIR, last_review=0):
+def add_project(state, pid="P-0001", name="Work MCP", directory=PROJECT_DIR, last_review=0):
     state["supervisor"]["last_project_number"] = max(state["supervisor"].get("last_project_number", 0), int(pid[2:]))
     state.setdefault("projects", []).append({
         "id": pid, "name": name, "context_doc_url": "https://github.com/org/repo/issues/1", "dir": directory,
@@ -2871,7 +2871,7 @@ class ProjectStateTest(unittest.TestCase):
         t["artifacts"][1]["url"] = "https://github.com/o/r/commit/abc123"
         new = st.next_state(self.current, cand, NOW)
         stub = find(new["archived"], "T-0020")
-        self.assertEqual(stub["project"], {"id": "P-0001", "name": "Nature MCP"})
+        self.assertEqual(stub["project"], {"id": "P-0001", "name": "Work MCP"})
         self.assertEqual(stub["proposal"]["title"], "t")
         self.assertEqual(stub["redos"][0]["text"], "again")
 
@@ -3013,7 +3013,7 @@ class ProjectCliTest(unittest.TestCase):
         self.assertEqual(self.kinds(self.actions(plan())), ["redo_dup"])
         self.assertEqual(self.kinds(self.actions(plan(task_id="T-0003"))), ["redo_foreign"])
         self.state["archived"].insert(0, {"id": "T-0040", "title": "old", "request": "r", "artifacts": [], "archived_at": NOW,
-                                          "project": {"id": "P-0001", "name": "Nature MCP"}})
+                                          "project": {"id": "P-0001", "name": "Work MCP"}})
         self.assertEqual(self.kinds(self.actions(plan(task_id="T-0040"))), ["redo_archived"])
         self.assertEqual(self.kinds(self.actions(plan(task_id="T-9999"))), ["redo_foreign"])
 
@@ -3168,9 +3168,9 @@ class ProjectGuardTest(unittest.TestCase):
         self.assertEqual(cmd, "python3 /s/state_tool.py guard --dir '/p dir' --role manager; [ $? -eq 3 ] && exit 2; exit 0")
 
     def test_prepare_project_dir_and_guard_exit_codes(self):
-        dest = self.work / "P-0001-nature-mcp"
+        dest = self.work / "P-0001-work-mcp"
         settings = dest / ".claude" / "settings.json"
-        code, out, _ = self.run_cli("--project", "P-0001-nature-mcp")
+        code, out, _ = self.run_cli("--project", "P-0001-work-mcp")
         self.assertEqual((code, out), (0, f"created: {dest}\ncreated: {settings}\n"))
         command = json.loads(settings.read_text())["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
         self.assertIn("--role manager", command)
@@ -3180,7 +3180,7 @@ class ProjectGuardTest(unittest.TestCase):
         self.assertIn("The project manager only reads", proc.stderr)
         read = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git log -1"}, "cwd": str(dest)})
         self.assertEqual(subprocess.run(["sh", "-c", command], input=read, capture_output=True, text=True).returncode, 0)
-        self.assertEqual(self.run_cli("--project", "P-0001-nature-mcp")[1], f"exists: {dest}\nexists: {settings}\n")
+        self.assertEqual(self.run_cli("--project", "P-0001-work-mcp")[1], f"exists: {dest}\nexists: {settings}\n")
 
     def test_existing_hooks_are_kept(self):
         dest = self.work / "P-0002-x"
@@ -3227,7 +3227,7 @@ class ProjectDigestTest(unittest.TestCase):
         w = project_worker(state)
         w["last_report"], w["review"] = rep("m1"), review()
         text = st.digest(state, "/s/state.json")
-        self.assertIn("- P-0001 Nature MCP | manager sess_mgr_P-0001 idle | doc https://github.com/org/repo/issues/1 | open reviews: R-0001 | tasks: T-0020", text)
+        self.assertIn("- P-0001 Work MCP | manager sess_mgr_P-0001 idle | doc https://github.com/org/repo/issues/1 | open reviews: R-0001 | tasks: T-0020", text)
         self.assertIn("- P-0001 UA-0900: Answer it", text)
         self.assertIn("- [P-0001] T-0020 [", text)
         self.assertLess(text.index("\nprojects:"), text.index("\ntasks:"))
@@ -3615,7 +3615,7 @@ class NoteTemplateTest(unittest.TestCase):
         self.assertEqual(sections["概要"].strip(), "typo を直してください。\n\n- README.md")
 
     def test_project_note_and_optional_links(self):
-        text = st.new_note_text("20261110_090001", "Nature MCP", "project", "backlog", "user", NOTE_NOW)
+        text = st.new_note_text("20261110_090001", "Work MCP", "project", "backlog", "user", NOTE_NOW)
         props = st.parse_frontmatter(text)[0]
         self.assertEqual(props["tags"], ["supervised", "project", "task"])
         self.assertNotIn("parent", props)
@@ -4897,8 +4897,8 @@ class NoteCommitTest(unittest.TestCase):
         find(cand["workers"], "w-0022").update(cwd="/repo/c", intended_state="pending", observed_state="none", session_id=None)
         to_v2(find(cand["tasks"], "T-0022"), "tasks", task_note["uid"])["project_id"] = "P-0001"
         code, out, err = self.env.commit(cand, {
-            project_note["uid"]: [{"op": "create", "uid": project_note["uid"], "title": "Nature MCP", "kind": "project",
-                                   "status": "in progress", "assignee": "agent", "request": "Nature MCP を作る https://github.com/org/repo/issues/1"}],
+            project_note["uid"]: [{"op": "create", "uid": project_note["uid"], "title": "Work MCP", "kind": "project",
+                                   "status": "in progress", "assignee": "agent", "request": "Work MCP を作る https://github.com/org/repo/issues/1"}],
             task_note["uid"]: [{"op": "create", "uid": task_note["uid"], "title": "README の typo", "kind": "task",
                                 "status": "in progress", "assignee": "agent", "request": "README の typo を直して",
                                 "parent": project_note["uid"]}]})
@@ -4907,7 +4907,7 @@ class NoteCommitTest(unittest.TestCase):
         self.assertEqual(sorted(out["notes_written"]), sorted([project_note["path"], task_note["path"]]))
         props = st.parse_frontmatter((self.env.vault / task_note["path"]).read_text(encoding="utf-8"))[0]
         self.assertEqual((props["project_id"], st.parent_project_id(state, props["parent"])), ("P-0001", "P-0001"))
-        self.assertEqual(props["parent"], f"[[{project_note['uid']}|Nature MCP]]")
+        self.assertEqual(props["parent"], f"[[{project_note['uid']}|Work MCP]]")
         self.assertEqual(self.env.scan(), {"events": [], "warnings": []})
 
     def test_held_task_waits_for_the_user_and_done_user_confirms(self):
@@ -5536,7 +5536,7 @@ class ProjectEditTest(unittest.TestCase):
     def setUp(self):
         self.env = VaultEnv(self)
         project = to_v2(add_project(self.env.state), "projects", U2)
-        text = st.new_note_text(U2, "Nature MCP", "project", "in progress", "agent", NOTE_NOW, "ctx https://github.com/org/repo/issues/1")
+        text = st.new_note_text(U2, "Work MCP", "project", "in progress", "agent", NOTE_NOW, "ctx https://github.com/org/repo/issues/1")
         self.env.put(U2, st.set_props(text, {"project_id": "P-0001"}))
         project.update(note=st._new_note_path(U2), note_seen=self.env.values(U2))
         self.env.save()
@@ -7031,7 +7031,7 @@ class ObsidianVaultTest(unittest.TestCase):
         self.assertIn("runs only on", err)
 
     def test_check_template(self):
-        good = '---\ntitle: ""\ntags: ["supervised", "nature/sre"]\nstatus: backlog\nassignee: user\nsummary: null\n---\n## 概要\n\n## ログ\n'
+        good = '---\ntitle: ""\ntags: ["supervised", "work/sre"]\nstatus: backlog\nassignee: user\nsummary: null\n---\n## 概要\n\n## ログ\n'
         self.assertEqual(st.template_errors(good, "task"), [])
         self.assertEqual(len(st.template_errors(good, "project")), 2)
         project = good.replace('"supervised"', '"supervised", "project", "task"').replace("## ログ", st.PROJECT_TASKS_SECTION + "\n## ログ")
@@ -7806,7 +7806,7 @@ def check_fixture(case, path, text):
 
 class DashboardFixtureTest(unittest.TestCase):
     """src/dashboard.ts ports supervisor_note: tests/dashboard.test.ts checks it against the same fixtures."""
-    CASES = {"default": {"templates": st.TEMPLATES_DIR}, "root": {"templates": st.TEMPLATES_DIR, "root": "supervisor/nature"},
+    CASES = {"default": {"templates": st.TEMPLATES_DIR}, "root": {"templates": st.TEMPLATES_DIR, "root": "supervisor/work"},
              "notemplates": {"templates": None}}
 
     def test_matches_fixtures(self):

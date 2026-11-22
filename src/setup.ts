@@ -58,7 +58,7 @@ class SetupModal extends Modal {
 			.setName("Root")
 			.setDesc("Folder of the notes (root). Empty for the vault root.")
 			.addText((t) =>
-				t.setPlaceholder("supervisor/nature").onChange((v) => {
+				t.setPlaceholder("supervisor/work").onChange((v) => {
 					this.root = v;
 					if (!this.dashboardEdited) {
 						this.dashboard = defaultDashboard(v);
