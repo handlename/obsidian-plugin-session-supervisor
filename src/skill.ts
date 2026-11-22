@@ -12,6 +12,9 @@ export async function extractSkill(plugin: Plugin): Promise<void> {
 	if (!Platform.isDesktopApp || !(adapter instanceof FileSystemAdapter)) return;
 	const { files, hash } = embedded as SkillFiles;
 	const dir = plugin.manifest.dir ?? "";
+	// A plugin folder linked to a checkout of this repository has package.json: its skill/ is the source itself,
+	// which extraction would replace (dropping tests/), and it already is the body the agent reads.
+	if (await adapter.exists(`${dir}/package.json`)) return;
 	const skill = `${dir}/skill`;
 	const tmp = `${dir}/skill.tmp`;
 	const markerPath = `${skill}/.version`;

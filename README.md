@@ -22,6 +22,15 @@ The plugin:
 
 ## Development
 
+To use a checkout directly, link it as the plugin folder and build it; reload the plugin after each build:
+
+```bash
+ln -s "$PWD" <vault>/.obsidian/plugins/session-supervisor
+npm ci && npm run build
+```
+
+A linked checkout has `package.json`, so the plugin skips extraction: the checkout's `skill/` is already the body the agent reads at `<vault>/.obsidian/plugins/session-supervisor/skill`.
+
 ```bash
 npm ci
 npm run build
