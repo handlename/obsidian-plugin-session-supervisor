@@ -26,3 +26,18 @@ export function uidPath(
 		return null;
 	return `${folder && folder !== "/" ? `${folder}/` : ""}${uid}.md`;
 }
+
+/** The roots that hold notes the supervisor manages (with a task_id or project_id), sorted. Template folders hold none. */
+export function managedRoots(
+	notes: { folder: string; managed: boolean }[],
+): string[] {
+	return [
+		...new Set(notes.filter((n) => n.managed).map((n) => folderRoot(n.folder))),
+	].sort();
+}
+
+/** The folder a new note of root goes to: <root>/YYYY/MM, like the notes commit creates. */
+export function datedFolder(root: string, date: Date): string {
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	return `${root ? `${root}/` : ""}${date.getFullYear()}/${month}`;
+}
