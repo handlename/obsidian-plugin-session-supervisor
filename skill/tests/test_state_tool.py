@@ -5726,6 +5726,13 @@ class ProposalNoteTest(unittest.TestCase):
         self.assertEqual([a["kind"] for a in self.plan([{"kind": "new", "title": "Add docs", "text": "x"}], {"Add docs"})],
                          ["proposal_dup"])
 
+    def test_a_proposal_carries_its_done_criteria(self):
+        actions = self.plan([{"kind": "new", "title": "Add docs", "text": "write docs", "done_when": " - docs exist \n"}])
+        self.assertEqual(actions[0]["done_when"], "- docs exist")
+        self.assertNotIn("done_when", self.plan([{"kind": "new", "title": "B", "text": "x", "done_when": " "}])[0])
+        bad = project_report(plans=[{"kind": "new", "title": "B", "text": "x", "done_when": ["a"]}])
+        self.assertIn("done_when", st.parse_project_report(bad, "P-0001")["error"])
+
     def test_knowledge_entries_become_actions_on_the_project_note(self):
         actions = self.plan(knowledge=[{"key": "apply-steps", "text": " restart-sv.sh で反映する "},
                                        {"key": "old-rule", "text": ""}])

@@ -3941,6 +3941,8 @@ def parse_project_report(text, expect_project=None):
             return {"ok": False, "error": "each plan needs kind redo or new"}
         if not _fields_ok(plan, keys) or not isinstance(plan.get("worker_id", ""), str):
             return {"ok": False, "error": f"a {kind} plan needs non-empty {' and '.join(keys)} (worker_id, when given, a string)"}
+        if not isinstance(plan.get("done_when", ""), str):
+            return {"ok": False, "error": f"a {kind} plan's done_when, when given, must be a string"}
     if not isinstance(report.get("knowledge", []), list):
         return {"ok": False, "error": "knowledge, when given, must be a list"}
     for item in report.get("knowledge", []):
@@ -4001,6 +4003,8 @@ def plan_actions(state, project_id, report, running=(), proposal_titles=()):
             action = {"kind": "proposal_dup" if dup else "proposal_add", "title": plan["title"], "text": plan["text"]}
             if project.get("uid") and not dup:
                 action.update(kind="proposal_note", parent=project["uid"])
+                if plan.get("done_when", "").strip():
+                    action["done_when"] = plan["done_when"].strip()
             actions.append(action)
             continue
         tid, text = plan["task_id"], plan["text"]

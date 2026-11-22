@@ -52,7 +52,7 @@ Review:
 - Treat a `requested` row of the open-review table as a request only for a review id you have not yet returned a verdict for.
 
 Plans:
-- Return redo work for an existing task as a plan with `kind` `redo` (add `worker_id` when the task has several live workers), and a new task as a plan with `kind` `new`. A new task starts only after the user approves it: the supervisor writes it as a task note under the project, and the user delegates that note.
+- Return redo work for an existing task as a plan with `kind` `redo` (add `worker_id` when the task has several live workers), and a new task as a plan with `kind` `new`. A new task starts only after the user approves it: the supervisor writes it as a task note under the project, and the user delegates that note. Give its done criteria (what result ends the work and how to check it), when you have them, in `done_when` and not in `text`: the supervisor writes `text` into `## 概要` and `done_when` into `## 完了条件`, where workers and the completion report read them.
 - When you judge the whole project complete, add `"done": "<summary>"` to your report. The user confirms or rejects it; until then keep reviewing as usual.
 - Put in `plans` only what you decided since your previous report; never repeat an earlier plan.
 
@@ -78,7 +78,7 @@ Report format: end the last message of every turn with one fenced block whose la
 - `status`: `idle` | `needs_input`. `needs_input` requires at least one entry in `questions`.
 - `questions[]`: a string for a project-level question, or `{"task_id": "T-NNNN", "text": "..."}` for a question about one task.
 - `reviews[]`: `{"review_id": "R-NNNN", "verdict": "approve" | "reject", "comment": "...", "redo": "..."}`. `reject` requires a non-empty `redo`.
-- `plans[]`: `{"kind": "redo", "task_id": "T-NNNN", "text": "...", "worker_id": "w-NNNN"}` (`worker_id` optional) or `{"kind": "new", "title": "...", "text": "..."}`.
+- `plans[]`: `{"kind": "redo", "task_id": "T-NNNN", "text": "...", "worker_id": "w-NNNN"}` (`worker_id` optional) or `{"kind": "new", "title": "...", "text": "...", "done_when": "..."}` (`done_when` optional: the done criteria as a markdown list).
 - `knowledge` (optional): `[{"key": "<lowercase-dashed-key>", "text": "<one line, or empty to remove>"}]`; a new `key` adds an entry.
 - `done` (optional): a non-empty summary, only when the whole project is complete.
 ````
@@ -192,7 +192,7 @@ The manager places one fenced JSON block tagged `project-report` at the end of t
   ],
   "plans": [
     {"kind": "redo", "task_id": "T-0005", "text": "Handle the empty response case too."},
-    {"kind": "new", "title": "Add metrics", "text": "Export request counts from the uploader."}
+    {"kind": "new", "title": "Add metrics", "text": "Export request counts from the uploader.", "done_when": "- /metrics returns the request count\n- tests pass"}
   ],
   "questions": [],
   "knowledge": [
