@@ -10,15 +10,15 @@ import {
 
 describe("project helpers", () => {
 	it("strips a trailing /YYYY/MM to get the root", () => {
-		expect(folderRoot("supervisor/nature/2026/11")).toBe("supervisor/nature");
-		expect(folderRoot("supervisor/nature")).toBe("supervisor/nature");
+		expect(folderRoot("supervisor/work/2026/11")).toBe("supervisor/work");
+		expect(folderRoot("supervisor/work")).toBe("supervisor/work");
 		expect(folderRoot("2026/11")).toBe("");
 		expect(folderRoot("/")).toBe("");
 	});
 
 	it("builds an aliased parent link", () => {
-		expect(parentLink("supervisor/nature/2026/11/p.md", 'A|B]"C')).toBe(
-			"[[supervisor/nature/2026/11/p|A B  C]]",
+		expect(parentLink("supervisor/work/2026/11/p.md", 'A|B]"C')).toBe(
+			"[[supervisor/work/2026/11/p|A B  C]]",
 		);
 	});
 
@@ -44,11 +44,11 @@ describe("roots for a note outside every root", () => {
 		expect(
 			managedRoots([
 				{ folder: "supervisor/personal/2026/11", managed: true },
-				{ folder: "supervisor/nature", managed: true },
-				{ folder: "supervisor/nature/2026/10", managed: true },
+				{ folder: "supervisor/work", managed: true },
+				{ folder: "supervisor/work/2026/10", managed: true },
 				{ folder: "_plugin/templater/template/supervisor", managed: false },
 			]),
-		).toEqual(["supervisor/nature", "supervisor/personal"]);
+		).toEqual(["supervisor/personal", "supervisor/work"]);
 	});
 
 	it("puts a new note under <root>/YYYY/MM", () => {

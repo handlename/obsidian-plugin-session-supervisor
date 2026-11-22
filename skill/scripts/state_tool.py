@@ -80,7 +80,7 @@ NOTE_KEYS = ("uid", "title", "para", "aliases", "created_at", "archived_at", "ta
              "follows")
 NOTE_RAW_KEYS = ("created_at", "archived_at")
 NOTE_SUMMARY_MAX = 80
-NOTE_SECTIONS = ("概要", "完了条件", "知見", "サブタスク", "完了報告", "アクション", "関連ノート", "関連資料", "成果物", "ログ")
+NOTE_SECTIONS = ("概要", "完了条件", "知見", "サブタスク", "アクション", "成果物", "完了報告", "関連ノート", "関連資料", "ログ")
 UA_SECTION = "アクション"
 ST_SECTION = "サブタスク"
 ART_SECTION = "成果物"

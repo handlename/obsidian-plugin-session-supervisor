@@ -2536,10 +2536,10 @@ class StdlibOnlyTest(unittest.TestCase):
 
 
 
-PROJECT_DIR = "/Users/handlename/supervisor-work/P-0001-nature-mcp"
+PROJECT_DIR = "/Users/handlename/supervisor-work/P-0001-work-mcp"
 
 
-def add_project(state, pid="P-0001", name="Nature MCP", directory=PROJECT_DIR, last_review=0):
+def add_project(state, pid="P-0001", name="Work MCP", directory=PROJECT_DIR, last_review=0):
     state["supervisor"]["last_project_number"] = max(state["supervisor"].get("last_project_number", 0), int(pid[2:]))
     state.setdefault("projects", []).append({
         "id": pid, "name": name, "context_doc_url": "https://github.com/org/repo/issues/1", "dir": directory,
@@ -2871,7 +2871,7 @@ class ProjectStateTest(unittest.TestCase):
         t["artifacts"][1]["url"] = "https://github.com/o/r/commit/abc123"
         new = st.next_state(self.current, cand, NOW)
         stub = find(new["archived"], "T-0020")
-        self.assertEqual(stub["project"], {"id": "P-0001", "name": "Nature MCP"})
+        self.assertEqual(stub["project"], {"id": "P-0001", "name": "Work MCP"})
         self.assertEqual(stub["proposal"]["title"], "t")
         self.assertEqual(stub["redos"][0]["text"], "again")
 
@@ -3013,7 +3013,7 @@ class ProjectCliTest(unittest.TestCase):
         self.assertEqual(self.kinds(self.actions(plan())), ["redo_dup"])
         self.assertEqual(self.kinds(self.actions(plan(task_id="T-0003"))), ["redo_foreign"])
         self.state["archived"].insert(0, {"id": "T-0040", "title": "old", "request": "r", "artifacts": [], "archived_at": NOW,
-                                          "project": {"id": "P-0001", "name": "Nature MCP"}})
+                                          "project": {"id": "P-0001", "name": "Work MCP"}})
         self.assertEqual(self.kinds(self.actions(plan(task_id="T-0040"))), ["redo_archived"])
         self.assertEqual(self.kinds(self.actions(plan(task_id="T-9999"))), ["redo_foreign"])
 
@@ -3168,9 +3168,9 @@ class ProjectGuardTest(unittest.TestCase):
         self.assertEqual(cmd, "python3 /s/state_tool.py guard --dir '/p dir' --role manager; [ $? -eq 3 ] && exit 2; exit 0")
 
     def test_prepare_project_dir_and_guard_exit_codes(self):
-        dest = self.work / "P-0001-nature-mcp"
+        dest = self.work / "P-0001-work-mcp"
         settings = dest / ".claude" / "settings.json"
-        code, out, _ = self.run_cli("--project", "P-0001-nature-mcp")
+        code, out, _ = self.run_cli("--project", "P-0001-work-mcp")
         self.assertEqual((code, out), (0, f"created: {dest}\ncreated: {settings}\n"))
         command = json.loads(settings.read_text())["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
         self.assertIn("--role manager", command)
@@ -3180,7 +3180,7 @@ class ProjectGuardTest(unittest.TestCase):
         self.assertIn("The project manager only reads", proc.stderr)
         read = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git log -1"}, "cwd": str(dest)})
         self.assertEqual(subprocess.run(["sh", "-c", command], input=read, capture_output=True, text=True).returncode, 0)
-        self.assertEqual(self.run_cli("--project", "P-0001-nature-mcp")[1], f"exists: {dest}\nexists: {settings}\n")
+        self.assertEqual(self.run_cli("--project", "P-0001-work-mcp")[1], f"exists: {dest}\nexists: {settings}\n")
 
     def test_existing_hooks_are_kept(self):
         dest = self.work / "P-0002-x"
@@ -3227,7 +3227,7 @@ class ProjectDigestTest(unittest.TestCase):
         w = project_worker(state)
         w["last_report"], w["review"] = rep("m1"), review()
         text = st.digest(state, "/s/state.json")
-        self.assertIn("- P-0001 Nature MCP | manager sess_mgr_P-0001 idle | doc https://github.com/org/repo/issues/1 | open reviews: R-0001 | tasks: T-0020", text)
+        self.assertIn("- P-0001 Work MCP | manager sess_mgr_P-0001 idle | doc https://github.com/org/repo/issues/1 | open reviews: R-0001 | tasks: T-0020", text)
         self.assertIn("- P-0001 UA-0900: Answer it", text)
         self.assertIn("- [P-0001] T-0020 [", text)
         self.assertLess(text.index("\nprojects:"), text.index("\ntasks:"))
@@ -3615,7 +3615,7 @@ class NoteTemplateTest(unittest.TestCase):
         self.assertEqual(sections["概要"].strip(), "typo を直してください。\n\n- README.md")
 
     def test_project_note_and_optional_links(self):
-        text = st.new_note_text("20261110_090001", "Nature MCP", "project", "backlog", "user", NOTE_NOW)
+        text = st.new_note_text("20261110_090001", "Work MCP", "project", "backlog", "user", NOTE_NOW)
         props = st.parse_frontmatter(text)[0]
         self.assertEqual(props["tags"], ["supervised", "project", "task"])
         self.assertNotIn("parent", props)
@@ -4167,7 +4167,7 @@ class ArtifactSectionTest(unittest.TestCase):
         items = [{"n": 1, "kind": "branch", "ref": BRANCH_REF}, {"n": 2, "kind": "commit", "ref": COMMIT_SHA}]
         out, ids, _ = apply_twice(self, text, [{"op": "art_add", "items": items}])
         self.assertEqual(ids, ["sv-art-1", "sv-art-2"])
-        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(out)[1]))[-2:], ["成果物", "ログ"])
+        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(out)[1]))[-4:], ["成果物", "関連ノート", "関連資料", "ログ"])
         parsed = st.parse_artifacts(self.section(out))[0]
         self.assertEqual([(i["n"], i["g"], i["r"]) for i in parsed], [(1, 1, 13), (2, 1, 13)])
         with self.assertRaises(st.StateError):
@@ -4897,8 +4897,8 @@ class NoteCommitTest(unittest.TestCase):
         find(cand["workers"], "w-0022").update(cwd="/repo/c", intended_state="pending", observed_state="none", session_id=None)
         to_v2(find(cand["tasks"], "T-0022"), "tasks", task_note["uid"])["project_id"] = "P-0001"
         code, out, err = self.env.commit(cand, {
-            project_note["uid"]: [{"op": "create", "uid": project_note["uid"], "title": "Nature MCP", "kind": "project",
-                                   "status": "in progress", "assignee": "agent", "request": "Nature MCP を作る https://github.com/org/repo/issues/1"}],
+            project_note["uid"]: [{"op": "create", "uid": project_note["uid"], "title": "Work MCP", "kind": "project",
+                                   "status": "in progress", "assignee": "agent", "request": "Work MCP を作る https://github.com/org/repo/issues/1"}],
             task_note["uid"]: [{"op": "create", "uid": task_note["uid"], "title": "README の typo", "kind": "task",
                                 "status": "in progress", "assignee": "agent", "request": "README の typo を直して",
                                 "parent": project_note["uid"]}]})
@@ -4907,7 +4907,7 @@ class NoteCommitTest(unittest.TestCase):
         self.assertEqual(sorted(out["notes_written"]), sorted([project_note["path"], task_note["path"]]))
         props = st.parse_frontmatter((self.env.vault / task_note["path"]).read_text(encoding="utf-8"))[0]
         self.assertEqual((props["project_id"], st.parent_project_id(state, props["parent"])), ("P-0001", "P-0001"))
-        self.assertEqual(props["parent"], f"[[{project_note['uid']}|Nature MCP]]")
+        self.assertEqual(props["parent"], f"[[{project_note['uid']}|Work MCP]]")
         self.assertEqual(self.env.scan(), {"events": [], "warnings": []})
 
     def test_held_task_waits_for_the_user_and_done_user_confirms(self):
@@ -5280,7 +5280,7 @@ class NotesScanCliTest(unittest.TestCase):
         self.assertIn("is not a schema_version 2 state", err)
 
     def test_note_show(self):
-        self.env.put(U1, self.env.text(U1).replace("## 関連ノート", "### @agent 追加\n\n本文\n\n## 関連ノート"))
+        self.env.put(U1, self.env.text(U1).replace("## 成果物", "### @agent 追加\n\n本文\n\n## 成果物"))
         code, out, _ = self.env.run("note-show", "--state", str(self.env.state_path), "--uid", U1)
         shown = json.loads(out)
         self.assertEqual((shown["path"], shown["props"]["uid"], shown["sections"]["概要"].strip(), shown["request"]),
@@ -5289,9 +5289,9 @@ class NotesScanCliTest(unittest.TestCase):
         self.assertEqual([(u["id"], u["description"], u["body"]) for u in shown["requests"]], [(None, "追加", "本文")])
 
     def test_events_carry_unnumbered_requests(self):
-        request = "### @agent CHANGELOG も直す\n\nUnreleased に 1 行\n\n## 関連ノート"
+        request = "### @agent CHANGELOG も直す\n\nUnreleased に 1 行\n\n## 成果物"
         # Writing a request without a status change prints nothing (it is read on the next transition).
-        self.env.put(U1, self.env.text(U1).replace("## 関連ノート", request))
+        self.env.put(U1, self.env.text(U1).replace("## 成果物", request))
         self.assertEqual(self.env.scan()["events"], [])
         state = self.env.load()
         paused = self.env.text(U1).replace('status: "in progress"', 'status: "pending"').replace('assignee: "agent"', 'assignee: "user"')
@@ -5302,7 +5302,7 @@ class NotesScanCliTest(unittest.TestCase):
         self.assertEqual((event["event"], event["row"]), ("resume", 8))
         self.assertEqual([(u["id"], u["kind"], u["assignee"], u["description"], u["body"]) for u in event["user_actions"]],
                          [(None, "req", "agent", "CHANGELOG も直す", "Unreleased に 1 行")])
-        self.env.put(U3, st.new_note_text(U3, "新しい依頼", "task", "backlog", "agent", NOTE_NOW, "やって").replace("## 関連ノート", request))
+        self.env.put(U3, st.new_note_text(U3, "新しい依頼", "task", "backlog", "agent", NOTE_NOW, "やって").replace("## 成果物", request))
         pickup = next(e for e in self.env.scan()["events"] if e["uid"] == U3)
         self.assertEqual((pickup["event"], [u["description"] for u in pickup["user_actions"]]), ("pickup", ["CHANGELOG も直す"]))
         self.assertEqual(self.env.run("note-show", "--state", str(self.env.state_path), "--uid", "nope")[0], 1)
@@ -5536,7 +5536,7 @@ class ProjectEditTest(unittest.TestCase):
     def setUp(self):
         self.env = VaultEnv(self)
         project = to_v2(add_project(self.env.state), "projects", U2)
-        text = st.new_note_text(U2, "Nature MCP", "project", "in progress", "agent", NOTE_NOW, "ctx https://github.com/org/repo/issues/1")
+        text = st.new_note_text(U2, "Work MCP", "project", "in progress", "agent", NOTE_NOW, "ctx https://github.com/org/repo/issues/1")
         self.env.put(U2, st.set_props(text, {"project_id": "P-0001"}))
         project.update(note=st._new_note_path(U2), note_seen=self.env.values(U2))
         self.env.save()
@@ -5750,7 +5750,7 @@ class ProposalNoteTest(unittest.TestCase):
         for base in (text, old):
             once = st.apply_note_ops(base, [{"op": "report_set", "text": "- 古い根拠"}], NOTE_NOW, 2)[0]
             twice = st.apply_note_ops(once, [REPORT_OP, REPORT_OP], NOTE_NOW, 3)[0]
-            self.assertEqual(list(sections(twice))[2:5], ["サブタスク", "完了報告", "アクション"])
+            self.assertEqual(list(sections(twice))[2:6], ["サブタスク", "アクション", "成果物", "完了報告"])
             self.assertEqual(sections(twice)["完了報告"], "\n" + REPORT_OP["text"] + "\n")
         for bad in ("", "## 見出し", "# 見出し"):
             with self.subTest(bad=bad), self.assertRaises(st.StateError):
@@ -6075,7 +6075,7 @@ class VerifyFixesTest(unittest.TestCase):
         self.env.put(U1, self.env.text(U1).replace('status: "done"', 'status: "pending"').replace('assignee: "agent"', 'assignee: "user"'))
         self.assertEqual(self.env.scan()["events"], [])
         text = self.env.text(U1).replace('status: "pending"', 'status: "backlog"').replace('assignee: "user"', 'assignee: "agent"')
-        self.env.put(U1, text.replace("## 関連ノート", "### @agent README の別の typo も直して\n\nCHANGELOG も\n\n## 関連ノート"))
+        self.env.put(U1, text.replace("## 成果物", "### @agent README の別の typo も直して\n\nCHANGELOG も\n\n## 成果物"))
         event = self.env.scan()["events"][0]
         self.assertEqual((event["event"], event["row"], event["live"], event["former"]), ("follow_up", 16, False, True))
         self.assertEqual(([(u["id"], u["kind"], u["description"], u["body"]) for u in event["user_actions"] if u["kind"] == "req"],
@@ -7031,7 +7031,7 @@ class ObsidianVaultTest(unittest.TestCase):
         self.assertIn("runs only on", err)
 
     def test_check_template(self):
-        good = '---\ntitle: ""\ntags: ["supervised", "nature/sre"]\nstatus: backlog\nassignee: user\nsummary: null\n---\n## 概要\n\n## ログ\n'
+        good = '---\ntitle: ""\ntags: ["supervised", "work/sre"]\nstatus: backlog\nassignee: user\nsummary: null\n---\n## 概要\n\n## ログ\n'
         self.assertEqual(st.template_errors(good, "task"), [])
         self.assertEqual(len(st.template_errors(good, "project")), 2)
         project = good.replace('"supervised"', '"supervised", "project", "task"').replace("## ログ", st.PROJECT_TASKS_SECTION + "\n## ログ")
@@ -7386,7 +7386,7 @@ class SubtaskTest(unittest.TestCase):
         # A note without the section gets it in the template order.
         bare = st.new_note_text("u6", "t", "task", "in progress", "agent", NOTE_NOW, "x").replace("## サブタスク\n\n", "")
         added = st.apply_note_ops(bare, [{"op": "st_add", "st": {"id": "ST-0001", "text": "足す"}}], NOTE_NOW, 2)[0]
-        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(added)[1]))[:4], ["概要", "完了条件", "サブタスク", "完了報告"])
+        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(added)[1]))[:4], ["概要", "完了条件", "サブタスク", "アクション"])
 
     def test_numbers_share_the_action_counter(self):
         ops = st.number_note_ops({"u": [{"op": "st_adopt", "st": {"text": "x"}}, {"op": "ua_add", "ua": {"kind": "ask", "description": "q"}},
@@ -7806,7 +7806,7 @@ def check_fixture(case, path, text):
 
 class DashboardFixtureTest(unittest.TestCase):
     """src/dashboard.ts ports supervisor_note: tests/dashboard.test.ts checks it against the same fixtures."""
-    CASES = {"default": {"templates": st.TEMPLATES_DIR}, "root": {"templates": st.TEMPLATES_DIR, "root": "supervisor/nature"},
+    CASES = {"default": {"templates": st.TEMPLATES_DIR}, "root": {"templates": st.TEMPLATES_DIR, "root": "supervisor/work"},
              "notemplates": {"templates": None}}
 
     def test_matches_fixtures(self):

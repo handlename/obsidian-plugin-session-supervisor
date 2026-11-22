@@ -396,7 +396,7 @@ The `priority` prop (`A`, `B`, or `C`) is the user's alone: `state_tool` never w
 ```markdown
 - [x] [ST-0290] hook エラーの調査 (w-0145 e1513f0)
 - [ ] [ST-0291] @agent mise trust の自動化 (w-0147)
-- [ ] [ST-0292] @user nature-server で動作確認する
+- [ ] [ST-0292] @user work-server で動作確認する
 - [ ] 書いたばかりの行
 ```
 

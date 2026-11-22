@@ -4,7 +4,7 @@
 filters:
   and:
     - file.hasTag("supervised")
-    - file.inFolder("supervisor/nature")
+    - file.inFolder("supervisor/work")
     - '!file.inFolder("_templates")'
     - '!file.hasTag("project")'
     - 'assignee == "user"'
@@ -33,7 +33,7 @@ views:
 filters:
   and:
     - file.hasTag("supervised")
-    - file.inFolder("supervisor/nature")
+    - file.inFolder("supervisor/work")
     - '!file.inFolder("_templates")'
     - '!file.hasTag("project")'
     - 'assignee == "agent"'
@@ -62,7 +62,7 @@ views:
 filters:
   and:
     - file.hasTag("supervised")
-    - file.inFolder("supervisor/nature")
+    - file.inFolder("supervisor/work")
     - '!file.inFolder("_templates")'
     - file.hasTag("project")
 formulas:

@@ -8,7 +8,7 @@ const fixture = (name: string) =>
 describe("supervisorNote", () => {
 	it.each([
 		["default", { templates: "_templates" }],
-		["root", { templates: "_templates", root: "supervisor/nature" }],
+		["root", { templates: "_templates", root: "supervisor/work" }],
 		["notemplates", {}],
 	])("matches dashboard-%s.md", (name, opts) => {
 		expect(supervisorNote(opts)).toBe(fixture(name));
