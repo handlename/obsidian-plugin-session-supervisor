@@ -68,8 +68,8 @@ export async function changeStatus(app: App): Promise<void> {
 /**
  * Asks the title of a task note, picks its project (or none) in the same root, writes `title` and `parent`, and
  * renames the note to its uid. A note outside every root (for example one a template plugin created at the vault's
- * top) first gets a root to move into, as <root>/YYYY/MM. Cancelling the title keeps the title; cancelling a picker
- * changes nothing.
+ * top) first gets a root to move into, as <root>/YYYY/MM. A project note (tagged `project`) gets the same title, root,
+ * and rename but no project. Cancelling the title keeps the title; cancelling a picker changes nothing.
  */
 export async function setTitleAndProject(app: App): Promise<void> {
 	const file = app.workspace.getActiveFile();
@@ -121,20 +121,25 @@ export async function setTitleAndProject(app: App): Promise<void> {
 		.sort((a, b) =>
 			String(a.fm.project_id).localeCompare(String(b.fm.project_id)),
 		);
-	const choice = await pick(
-		app,
-		[{ f: null, fm: {} as Frontmatter }, ...projects],
-		({ f, fm }) =>
-			f ? `${fm.project_id} ${fm.title || f.basename}` : "(プロジェクトなし)",
-	);
-	if (!choice) return;
+	const isProject = tagsOf(own).includes("project");
+	const choice = isProject
+		? undefined
+		: await pick(
+				app,
+				[{ f: null, fm: {} as Frontmatter }, ...projects],
+				({ f, fm }) =>
+					f
+						? `${fm.project_id} ${fm.title || f.basename}`
+						: "(プロジェクトなし)",
+			);
+	if (choice === null) return;
 	await app.fileManager.processFrontMatter(file, (front: Frontmatter) => {
-		if (choice.f) {
+		if (choice?.f) {
 			front.parent = parentLink(
 				choice.f.path,
 				String(choice.fm.title || choice.f.basename),
 			);
-		} else {
+		} else if (choice) {
 			delete front.parent;
 		}
 		if (newTitle) front.title = newTitle;
