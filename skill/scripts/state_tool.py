@@ -4848,7 +4848,9 @@ KANBAN_ORDER = "[formula.title, summary, subtasks, task_id, project_id, created_
 PRIORITY_FORMULA = """\n  priority_rank: 'if(priority == "A", 1, if(priority == "C", 3, 2))'"""
 TASK_SORT = ("\n    sort:\n      - property: formula.priority_rank\n        direction: ASC"
              "\n      - property: file.mtime\n        direction: DESC")
-TASK_ORDER = "[formula.title, summary, priority, subtasks, task_id, project_id, created_at]"
+# A task card shows its project as the note's `parent` link (titled, `[[uid|<title>]]`) rather than the bare P-id.
+TASK_ORDER = "[formula.title, summary, priority, subtasks, task_id, parent, created_at]"
+TASK_ORDER_PROJECT_ID = "[formula.title, summary, priority, subtasks, task_id, project_id, created_at]"
 
 
 def _kanban_base(name, filters, templates, order=KANBAN_ORDER, sort="", formulas="", root=None):
@@ -4903,7 +4905,7 @@ def legacy_supervisor_notes(templates, root=None):
     return tuple(f"## ユーザーの番\n\n{_kanban_base('ユーザー', (_ASSIGNEE_IS.format('user'),), templates, order, root=root)}\n"
                  f"## エージェントの番\n\n{_kanban_base('エージェント', (_ASSIGNEE_IS.format('agent'),), templates, order, root=root)}"
                  for order in (KANBAN_ORDER, "[formula.title, task_id, project_id, created_at]")) + (
-        supervisor_note(templates, KANBAN_ORDER, "", "", root),)
+        supervisor_note(templates, KANBAN_ORDER, "", "", root), supervisor_note(templates, TASK_ORDER_PROJECT_ID, root=root))
 
 
 def _setup_vault(supervisor_dir):

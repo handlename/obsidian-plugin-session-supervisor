@@ -5635,6 +5635,8 @@ class SetupVaultTest(unittest.TestCase):
         # The dashboard before 0.82 (no sort) is an earlier version that setup brings up to date.
         self.assertIn(note.replace(st.TASK_SORT, "").replace(st.PRIORITY_FORMULA, "").replace(st.TASK_ORDER, st.KANBAN_ORDER),
                       st.legacy_supervisor_notes("_templates"))
+        # So is the one whose task cards showed `project_id` instead of the `parent` link.
+        self.assertIn(note.replace(st.TASK_ORDER, st.TASK_ORDER_PROJECT_ID), st.legacy_supervisor_notes("_templates"))
 
     def test_creates_the_vault_once(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -5650,7 +5652,7 @@ class SetupVaultTest(unittest.TestCase):
             self.assertIn("## プロジェクト", dashboard)
             self.assertIn("order: [formula.title, summary, project_id, assignee, created_at]", dashboard)
             self.assertIn("groupOrder: [backlog, in progress, pending, done, archived]", (vault / "Supervisor.md").read_text(encoding="utf-8"))
-            self.assertEqual(dashboard.count("order: [formula.title, summary, priority, subtasks, task_id, project_id, created_at]"), 2)
+            self.assertEqual(dashboard.count("order: [formula.title, summary, priority, subtasks, task_id, parent, created_at]"), 2)
             self.assertIn('file.hasTag("supervised")', dashboard)
             self.assertEqual(list(vault.rglob("sv-*")), [])
             self.assertFalse((vault / ".obsidian").exists())

@@ -28,6 +28,8 @@ formulas:
         direction: DESC
 ```
 
+The task kanbans of an earlier dashboard show the bare `project_id` on each card. To show the project as the titled link of the task note's `parent` instead, replace `project_id` with `parent` in the `order:` line of each task kanban of an edited dashboard (an unedited one, `setup` brings up to date); keep `project_id` in the `## プロジェクト` kanban, where it is the project's own id.
+
 ## Old blocker wording
 
 Section 5 (the user action table). Old blocker wording: when the user mentions a user action of a task in this chat and it may be a free-text report blocker recorded before 0.27.0, take the task's live workers (`intended_state` not `archived`, `observed_state` neither `archived` nor `missing`) whose `last_report.status` is `needs_input`, `blocked`, or `failed`. Read each one's message `last_report.message_ref` again and run `parse-report` on it. The user action is an old blocker only when its description equals one of those `blockers`; otherwise it belongs to another row (an unparsed summary, a failed verification).

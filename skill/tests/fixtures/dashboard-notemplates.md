@@ -15,7 +15,7 @@ views:
     groupBy:
       property: status
       direction: ASC
-    order: [formula.title, summary, priority, subtasks, task_id, project_id, created_at]
+    order: [formula.title, summary, priority, subtasks, task_id, parent, created_at]
     sort:
       - property: formula.priority_rank
         direction: ASC
@@ -42,7 +42,7 @@ views:
     groupBy:
       property: status
       direction: ASC
-    order: [formula.title, summary, priority, subtasks, task_id, project_id, created_at]
+    order: [formula.title, summary, priority, subtasks, task_id, parent, created_at]
     sort:
       - property: formula.priority_rank
         direction: ASC
