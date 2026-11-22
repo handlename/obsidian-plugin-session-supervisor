@@ -7,7 +7,14 @@ import {
 	type TFile,
 } from "obsidian";
 import { availableMoves, noteBody } from "./moves";
-import { defaultTitle, folderRoot, parentLink, uidPath } from "./project";
+import {
+	datedFolder,
+	defaultTitle,
+	folderRoot,
+	managedRoots,
+	parentLink,
+	uidPath,
+} from "./project";
 import { pick, prompt } from "./ui";
 
 type Frontmatter = Record<string, unknown>;
@@ -60,7 +67,9 @@ export async function changeStatus(app: App): Promise<void> {
 
 /**
  * Asks the title of a task note, picks its project (or none) in the same root, writes `title` and `parent`, and
- * renames the note to its uid. Cancelling the title keeps the title; cancelling the picker changes nothing.
+ * renames the note to its uid. A note outside every root (for example one a template plugin created at the vault's
+ * top) first gets a root to move into, as <root>/YYYY/MM. Cancelling the title keeps the title; cancelling a picker
+ * changes nothing.
  */
 export async function setTitleAndProject(app: App): Promise<void> {
 	const file = app.workspace.getActiveFile();
@@ -79,13 +88,30 @@ export async function setTitleAndProject(app: App): Promise<void> {
 		defaultTitle(own.title, file.basename),
 	);
 	const newTitle = typed?.trim();
-	const root = folderRoot(file.parent?.path ?? "");
-	const projects = app.vault
+	const notes = app.vault
 		.getMarkdownFiles()
-		.map((f) => ({ f, fm: fmOf(app, f) }))
+		.filter((f) => f.path !== file.path)
+		.map((f) => ({ f, fm: fmOf(app, f) }));
+	const roots = managedRoots(
+		notes.map(({ f, fm }) => ({
+			folder: f.parent?.path ?? "",
+			managed:
+				tagsOf(fm).includes("supervised") &&
+				Boolean(fm.task_id || fm.project_id),
+		})),
+	);
+	let folder = file.parent?.path ?? "";
+	let root = folderRoot(folder);
+	if (roots.length && !roots.includes(root)) {
+		const picked = await pick(app, roots, (r) => r || "(vault)");
+		if (picked === null) return;
+		root = picked;
+		folder = datedFolder(root, new Date());
+	}
+	const moving = folder !== (file.parent?.path ?? "");
+	const projects = notes
 		.filter(
 			({ f, fm }) =>
-				f.path !== file.path &&
 				folderRoot(f.parent?.path ?? "") === root &&
 				tagsOf(fm).includes("supervised") &&
 				tagsOf(fm).includes("project") &&
@@ -116,11 +142,15 @@ export async function setTitleAndProject(app: App): Promise<void> {
 	// Read the uid from the file: the metadata cache may not have caught up with a note just created.
 	const after = getFrontMatterInfo(await app.vault.read(file));
 	const uid = after.exists ? parseYaml(after.frontmatter)?.uid : undefined;
-	const dest = uidPath(file.parent?.path ?? "", file.basename, uid);
+	const dest =
+		uidPath(folder, file.basename, uid) ??
+		(moving ? `${folder}/${file.name}` : null);
 	if (!dest) return;
 	if (app.vault.getAbstractFileByPath(dest)) {
-		new Notice(`${dest} が既にあるので名前を変えません`);
+		new Notice(`${dest} が既にあるので名前と場所を変えません`);
 		return;
 	}
+	if (moving && !app.vault.getFolderByPath(folder))
+		await app.vault.createFolder(folder);
 	await app.fileManager.renameFile(file, dest);
 }

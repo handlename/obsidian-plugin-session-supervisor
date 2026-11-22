@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { defaultTitle, folderRoot, parentLink, uidPath } from "../src/project";
+import {
+	datedFolder,
+	defaultTitle,
+	folderRoot,
+	managedRoots,
+	parentLink,
+	uidPath,
+} from "../src/project";
 
 describe("project helpers", () => {
 	it("strips a trailing /YYYY/MM to get the root", () => {
@@ -29,5 +36,25 @@ describe("project helpers", () => {
 		expect(uidPath("a", "u1", "u1")).toBeNull();
 		expect(uidPath("a", "x", "a/b")).toBeNull();
 		expect(uidPath("a", "x", undefined)).toBeNull();
+	});
+});
+
+describe("roots for a note outside every root", () => {
+	it("lists the roots of managed notes only", () => {
+		expect(
+			managedRoots([
+				{ folder: "supervisor/personal/2026/11", managed: true },
+				{ folder: "supervisor/nature", managed: true },
+				{ folder: "supervisor/nature/2026/10", managed: true },
+				{ folder: "_plugin/templater/template/supervisor", managed: false },
+			]),
+		).toEqual(["supervisor/nature", "supervisor/personal"]);
+	});
+
+	it("puts a new note under <root>/YYYY/MM", () => {
+		expect(datedFolder("supervisor/personal", new Date(2026, 10, 22))).toBe(
+			"supervisor/personal/2026/11",
+		);
+		expect(datedFolder("", new Date(2026, 0, 5))).toBe("2026/01");
 	});
 });
