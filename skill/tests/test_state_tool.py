@@ -4167,7 +4167,7 @@ class ArtifactSectionTest(unittest.TestCase):
         items = [{"n": 1, "kind": "branch", "ref": BRANCH_REF}, {"n": 2, "kind": "commit", "ref": COMMIT_SHA}]
         out, ids, _ = apply_twice(self, text, [{"op": "art_add", "items": items}])
         self.assertEqual(ids, ["sv-art-1", "sv-art-2"])
-        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(out)[1]))[-2:], ["成果物", "ログ"])
+        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(out)[1]))[-4:], ["成果物", "関連ノート", "関連資料", "ログ"])
         parsed = st.parse_artifacts(self.section(out))[0]
         self.assertEqual([(i["n"], i["g"], i["r"]) for i in parsed], [(1, 1, 13), (2, 1, 13)])
         with self.assertRaises(st.StateError):
@@ -5280,7 +5280,7 @@ class NotesScanCliTest(unittest.TestCase):
         self.assertIn("is not a schema_version 2 state", err)
 
     def test_note_show(self):
-        self.env.put(U1, self.env.text(U1).replace("## 関連ノート", "### @agent 追加\n\n本文\n\n## 関連ノート"))
+        self.env.put(U1, self.env.text(U1).replace("## 成果物", "### @agent 追加\n\n本文\n\n## 成果物"))
         code, out, _ = self.env.run("note-show", "--state", str(self.env.state_path), "--uid", U1)
         shown = json.loads(out)
         self.assertEqual((shown["path"], shown["props"]["uid"], shown["sections"]["概要"].strip(), shown["request"]),
@@ -5289,9 +5289,9 @@ class NotesScanCliTest(unittest.TestCase):
         self.assertEqual([(u["id"], u["description"], u["body"]) for u in shown["requests"]], [(None, "追加", "本文")])
 
     def test_events_carry_unnumbered_requests(self):
-        request = "### @agent CHANGELOG も直す\n\nUnreleased に 1 行\n\n## 関連ノート"
+        request = "### @agent CHANGELOG も直す\n\nUnreleased に 1 行\n\n## 成果物"
         # Writing a request without a status change prints nothing (it is read on the next transition).
-        self.env.put(U1, self.env.text(U1).replace("## 関連ノート", request))
+        self.env.put(U1, self.env.text(U1).replace("## 成果物", request))
         self.assertEqual(self.env.scan()["events"], [])
         state = self.env.load()
         paused = self.env.text(U1).replace('status: "in progress"', 'status: "pending"').replace('assignee: "agent"', 'assignee: "user"')
@@ -5302,7 +5302,7 @@ class NotesScanCliTest(unittest.TestCase):
         self.assertEqual((event["event"], event["row"]), ("resume", 8))
         self.assertEqual([(u["id"], u["kind"], u["assignee"], u["description"], u["body"]) for u in event["user_actions"]],
                          [(None, "req", "agent", "CHANGELOG も直す", "Unreleased に 1 行")])
-        self.env.put(U3, st.new_note_text(U3, "新しい依頼", "task", "backlog", "agent", NOTE_NOW, "やって").replace("## 関連ノート", request))
+        self.env.put(U3, st.new_note_text(U3, "新しい依頼", "task", "backlog", "agent", NOTE_NOW, "やって").replace("## 成果物", request))
         pickup = next(e for e in self.env.scan()["events"] if e["uid"] == U3)
         self.assertEqual((pickup["event"], [u["description"] for u in pickup["user_actions"]]), ("pickup", ["CHANGELOG も直す"]))
         self.assertEqual(self.env.run("note-show", "--state", str(self.env.state_path), "--uid", "nope")[0], 1)
@@ -5750,7 +5750,7 @@ class ProposalNoteTest(unittest.TestCase):
         for base in (text, old):
             once = st.apply_note_ops(base, [{"op": "report_set", "text": "- 古い根拠"}], NOTE_NOW, 2)[0]
             twice = st.apply_note_ops(once, [REPORT_OP, REPORT_OP], NOTE_NOW, 3)[0]
-            self.assertEqual(list(sections(twice))[2:5], ["サブタスク", "完了報告", "アクション"])
+            self.assertEqual(list(sections(twice))[2:6], ["サブタスク", "アクション", "成果物", "完了報告"])
             self.assertEqual(sections(twice)["完了報告"], "\n" + REPORT_OP["text"] + "\n")
         for bad in ("", "## 見出し", "# 見出し"):
             with self.subTest(bad=bad), self.assertRaises(st.StateError):
@@ -6075,7 +6075,7 @@ class VerifyFixesTest(unittest.TestCase):
         self.env.put(U1, self.env.text(U1).replace('status: "done"', 'status: "pending"').replace('assignee: "agent"', 'assignee: "user"'))
         self.assertEqual(self.env.scan()["events"], [])
         text = self.env.text(U1).replace('status: "pending"', 'status: "backlog"').replace('assignee: "user"', 'assignee: "agent"')
-        self.env.put(U1, text.replace("## 関連ノート", "### @agent README の別の typo も直して\n\nCHANGELOG も\n\n## 関連ノート"))
+        self.env.put(U1, text.replace("## 成果物", "### @agent README の別の typo も直して\n\nCHANGELOG も\n\n## 成果物"))
         event = self.env.scan()["events"][0]
         self.assertEqual((event["event"], event["row"], event["live"], event["former"]), ("follow_up", 16, False, True))
         self.assertEqual(([(u["id"], u["kind"], u["description"], u["body"]) for u in event["user_actions"] if u["kind"] == "req"],
@@ -7386,7 +7386,7 @@ class SubtaskTest(unittest.TestCase):
         # A note without the section gets it in the template order.
         bare = st.new_note_text("u6", "t", "task", "in progress", "agent", NOTE_NOW, "x").replace("## サブタスク\n\n", "")
         added = st.apply_note_ops(bare, [{"op": "st_add", "st": {"id": "ST-0001", "text": "足す"}}], NOTE_NOW, 2)[0]
-        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(added)[1]))[:4], ["概要", "完了条件", "サブタスク", "完了報告"])
+        self.assertEqual(list(st.parse_sections(st.parse_frontmatter(added)[1]))[:4], ["概要", "完了条件", "サブタスク", "アクション"])
 
     def test_numbers_share_the_action_counter(self):
         ops = st.number_note_ops({"u": [{"op": "st_adopt", "st": {"text": "x"}}, {"op": "ua_add", "ua": {"kind": "ask", "description": "q"}},
