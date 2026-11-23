@@ -72,3 +72,55 @@ export function supervisorNote(opts: {
 	);
 	return `## ユーザーの番\n\n${task("ユーザー", "user")}\n## エージェントの番\n\n${task("エージェント", "agent")}\n## プロジェクト\n\n${project}`;
 }
+
+/** The dashboard note setup offers for root: <root>/Supervisor.md. */
+export const defaultDashboard = (root: string) =>
+	root.trim()
+		? `${root.trim().replace(/\/+$/, "")}/Supervisor.md`
+		: "Supervisor.md";
+
+/** The root and templates a dashboard note was made for (by supervisorNote or an earlier layout); null for other notes. */
+export function dashboardLocations(
+	text: string,
+): { root: string; templates: string } | null {
+	if (!/^## ユーザーの番$/m.test(text) || !text.includes("```base"))
+		return null;
+	return {
+		root: /^ {4}- file\.inFolder\("([^"]*)"\)$/m.exec(text)?.[1] ?? "",
+		templates: /^ {4}- '!file\.inFolder\("([^"]*)"\)'$/m.exec(text)?.[1] ?? "",
+	};
+}
+
+export type RootEntry = {
+	root: string;
+	templates: string;
+	dashboard: string;
+	/** False for a root that holds managed notes but has no dashboard note. */
+	exists: boolean;
+};
+
+/**
+ * The roots of the vault with the values setup uses: one per dashboard note, plus each root of managed notes
+ * that no dashboard covers (with the values setup offers by default). Sorted by root, then dashboard.
+ */
+export function rootEntries(
+	dashboards: { path: string; text: string }[],
+	managed: string[],
+): RootEntry[] {
+	const found: RootEntry[] = dashboards.flatMap(({ path, text }) => {
+		const loc = dashboardLocations(text);
+		return loc ? [{ ...loc, dashboard: path, exists: true }] : [];
+	});
+	const missing = managed
+		.filter((root) => !found.some((e) => e.root === root))
+		.map((root) => ({
+			root,
+			templates: "_templates",
+			dashboard: defaultDashboard(root),
+			exists: false,
+		}));
+	return [...found, ...missing].sort(
+		(a, b) =>
+			a.root.localeCompare(b.root) || a.dashboard.localeCompare(b.dashboard),
+	);
+}

@@ -6,7 +6,13 @@ import {
 	PluginSettingTab,
 	Setting,
 } from "obsidian";
-import { supervisorNote } from "./dashboard";
+import {
+	defaultDashboard,
+	type RootEntry,
+	rootEntries,
+	supervisorNote,
+} from "./dashboard";
+import { managedRoots } from "./project";
 
 /**
  * Creates the root folder and, when it is missing, the dashboard note of one root. Nothing is saved: the values
@@ -35,11 +41,6 @@ export async function setupRoot(
 	);
 	return "created";
 }
-
-const defaultDashboard = (root: string) =>
-	root.trim()
-		? `${root.trim().replace(/\/+$/, "")}/Supervisor.md`
-		: "Supervisor.md";
 
 class SetupModal extends Modal {
 	private root = "";
@@ -115,10 +116,30 @@ class SetupModal extends Modal {
 	}
 }
 
+/** The roots of the vault: the dashboard notes it holds and the roots of its managed notes. */
+async function findRoots(app: App): Promise<RootEntry[]> {
+	const dashboards: { path: string; text: string }[] = [];
+	const notes: { folder: string; managed: boolean }[] = [];
+	for (const f of app.vault.getMarkdownFiles()) {
+		const cache = app.metadataCache.getFileCache(f);
+		const fm = cache?.frontmatter ?? {};
+		notes.push({
+			folder: f.parent?.path ?? "",
+			managed:
+				([] as unknown[]).concat(fm.tags ?? []).includes("supervised") &&
+				Boolean(fm.task_id || fm.project_id),
+		});
+		if (cache?.sections?.some((s) => s.type === "code"))
+			dashboards.push({ path: f.path, text: await app.vault.cachedRead(f) });
+	}
+	return rootEntries(dashboards, managedRoots(notes));
+}
+
 export class SetupSettingTab extends PluginSettingTab {
 	display(): void {
-		this.containerEl.empty();
-		new Setting(this.containerEl)
+		const { containerEl } = this;
+		containerEl.empty();
+		new Setting(containerEl)
 			.setName("Setup")
 			.setDesc(
 				"Create a root folder and its dashboard note when it is missing. An existing dashboard is left untouched.",
@@ -128,5 +149,46 @@ export class SetupSettingTab extends PluginSettingTab {
 					.setButtonText("Set up")
 					.onClick(() => new SetupModal(this.app).open()),
 			);
+		new Setting(containerEl).setName("Roots").setHeading();
+		const list = containerEl.createDiv();
+		void this.showRoots(list);
+	}
+
+	private async showRoots(el: HTMLElement): Promise<void> {
+		const roots = await findRoots(this.app);
+		if (!roots.length) {
+			el.createEl("p", { text: "No roots found in this vault." });
+			return;
+		}
+		const run = async (entries: RootEntry[]) => {
+			for (const e of entries) {
+				try {
+					const result = await setupRoot(this.app, e);
+					new Notice(`${result}: ${e.dashboard}`);
+				} catch (err) {
+					new Notice(`Setup failed for ${e.dashboard}: ${err}`);
+				}
+			}
+			this.display();
+		};
+		new Setting(el)
+			.setName("Re-run setup for all roots")
+			.setDesc("Run setup again with the values below.")
+			.addButton((b) =>
+				b.setButtonText("Re-run all").onClick(() => run(roots)),
+			);
+		for (const e of roots) {
+			const desc = createFragment((f) => {
+				f.appendText(`Templates: ${e.templates || "(none)"}`);
+				f.createEl("br");
+				f.appendText(
+					`Dashboard: ${e.dashboard}${e.exists ? "" : " (missing)"}`,
+				);
+			});
+			new Setting(el)
+				.setName(`Root: ${e.root || "(vault)"}`)
+				.setDesc(desc)
+				.addButton((b) => b.setButtonText("Re-run").onClick(() => run([e])));
+		}
 	}
 }
