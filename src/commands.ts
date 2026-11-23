@@ -15,7 +15,7 @@ import {
 	parentLink,
 	uidPath,
 } from "./project";
-import { closeRenamePrompts, pick, prompt } from "./ui";
+import { closeRenamePrompts, noteDialog, pick } from "./ui";
 
 type Frontmatter = Record<string, unknown>;
 
@@ -66,10 +66,10 @@ export async function changeStatus(app: App): Promise<void> {
 }
 
 /**
- * Picks the project (or none) of a task note in its root, then asks its title, writes `title` and `parent`, and
- * renames the note to its uid. A note outside every root (for example one a template plugin created at the vault's
- * top) first gets a root to move into, as <root>/YYYY/MM. A project note (tagged `project`) gets the same root, title,
- * and rename but no project. Cancelling the title keeps the title; cancelling a picker changes nothing.
+ * Asks the root, the project (or none) of a task note in that root, and the title in one dialog, writes `title` and
+ * `parent`, and renames the note to its uid. Choosing another root than the note's (preselected for a note outside
+ * every root, for example one a template plugin created at the vault's top) moves it to <root>/YYYY/MM. A project note
+ * (tagged `project`) gets no project. An empty title keeps the title; dismissing the dialog changes nothing.
  * Obsidian's own "Note title" rename dialog, which Templater opens for a note it creates, is closed first so that the
  * title is asked once.
  */
@@ -97,52 +97,48 @@ export async function setTitleAndProject(app: App): Promise<void> {
 				Boolean(fm.task_id || fm.project_id),
 		})),
 	);
-	let folder = file.parent?.path ?? "";
-	let root = folderRoot(folder);
-	if (roots.length && !roots.includes(root)) {
-		const picked = await pick(app, roots, (r) => r || "(vault)");
-		if (picked === null) return;
-		root = picked;
-		folder = datedFolder(root, new Date());
-	}
-	const moving = folder !== (file.parent?.path ?? "");
-	const projects = notes
-		.filter(
-			({ f, fm }) =>
-				folderRoot(f.parent?.path ?? "") === root &&
-				tagsOf(fm).includes("supervised") &&
-				tagsOf(fm).includes("project") &&
-				fm.project_id &&
-				!["done", "archived"].includes(String(fm.status)),
-		)
-		.sort((a, b) =>
-			String(a.fm.project_id).localeCompare(String(b.fm.project_id)),
-		);
-	const isProject = tagsOf(own).includes("project");
-	const choice = isProject
-		? undefined
-		: await pick(
-				app,
-				[{ f: null, fm: {} as Frontmatter }, ...projects],
+	const here = file.parent?.path ?? "";
+	const ownRoot = folderRoot(here);
+	const projectsOf = (root: string) =>
+		notes
+			.filter(
 				({ f, fm }) =>
-					f
-						? `${fm.project_id} ${fm.title || f.basename}`
-						: "(プロジェクトなし)",
+					folderRoot(f.parent?.path ?? "") === root &&
+					tagsOf(fm).includes("supervised") &&
+					tagsOf(fm).includes("project") &&
+					fm.project_id &&
+					!["done", "archived"].includes(String(fm.status)),
+			)
+			.sort((a, b) =>
+				String(a.fm.project_id).localeCompare(String(b.fm.project_id)),
 			);
-	if (choice === null) return;
-	const typed = await prompt(
-		app,
-		"タイトル",
-		defaultTitle(own.title, file.basename),
-	);
-	const newTitle = typed?.trim();
+	const isProject = tagsOf(own).includes("project");
+	const form = await noteDialog(app, {
+		roots,
+		root: roots.includes(ownRoot) ? ownRoot : (roots[0] ?? ownRoot),
+		projectsOf: isProject ? undefined : projectsOf,
+		projectLabel: ({ f, fm }) => `${fm.project_id} ${fm.title || f.basename}`,
+		project:
+			projectsOf(ownRoot).find(({ f }) =>
+				String(own.parent ?? "").startsWith(
+					`[[${f.path.replace(/\.md$/, "")}|`,
+				),
+			) ?? null,
+		title: defaultTitle(own.title, file.basename),
+	});
+	if (!form) return;
+	const folder =
+		form.root === ownRoot ? here : datedFolder(form.root, new Date());
+	const moving = folder !== here;
+	const choice = form.project;
+	const newTitle = form.title.trim();
 	await app.fileManager.processFrontMatter(file, (front: Frontmatter) => {
-		if (choice?.f) {
+		if (choice) {
 			front.parent = parentLink(
 				choice.f.path,
 				String(choice.fm.title || choice.f.basename),
 			);
-		} else if (choice) {
+		} else if (!isProject) {
 			delete front.parent;
 		}
 		if (newTitle) front.title = newTitle;

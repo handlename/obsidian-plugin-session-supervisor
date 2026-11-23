@@ -12,16 +12,12 @@ vi.mock("obsidian", () => ({
 }));
 
 const calls: string[] = [];
-const pick = vi.fn();
+const noteDialog = vi.fn();
 vi.mock("../src/ui", () => ({
 	closeRenamePrompts: () => calls.push("closeRenamePrompts"),
-	pick: (...args: unknown[]) => {
-		calls.push("pick");
-		return pick(...args);
-	},
-	prompt: async () => {
-		calls.push("prompt");
-		return "New project";
+	noteDialog: (...args: unknown[]) => {
+		calls.push("noteDialog");
+		return noteDialog(...args);
 	},
 }));
 
@@ -74,23 +70,35 @@ function fakeApp(active: ReturnType<typeof fakeFile>) {
 	return { app, renamed, created };
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: the form the command passes
+const submit = (change: (form: any) => object) =>
+	// biome-ignore lint/suspicious/noExplicitAny: the form the command passes
+	noteDialog.mockImplementationOnce(async (_app, form: any) => ({
+		...form,
+		...change(form),
+	}));
+
 describe("setTitleAndProject", () => {
 	beforeEach(() => {
-		pick.mockReset();
+		noteDialog.mockReset();
 		calls.length = 0;
 	});
 
-	it("asks a project note at the vault top for its root, not a project", async () => {
+	it("asks a project note at the vault top for its root and title in one dialog, not a project", async () => {
 		const note = fakeFile("Untitled.md", {
 			tags: ["supervised", "project"],
 			uid: "20261123_100000",
 		});
 		const { app, renamed } = fakeApp(note);
-		pick.mockResolvedValueOnce("sv/work");
+		submit(() => ({ root: "sv/work", title: "New project" }));
 		// biome-ignore lint/suspicious/noExplicitAny: fake app
 		await setTitleAndProject(app as any);
-		expect(pick).toHaveBeenCalledTimes(1);
-		expect(pick.mock.calls[0][1]).toEqual(["sv/personal", "sv/work"]);
+		expect(calls).toEqual(["closeRenamePrompts", "noteDialog"]);
+		const form = noteDialog.mock.calls[0][1];
+		expect(form.roots).toEqual(["sv/personal", "sv/work"]);
+		expect(form.root).toBe("sv/personal");
+		expect(form.projectsOf).toBeUndefined();
+		expect(form.title).toBe("");
 		expect(note.fm.title).toBe("New project");
 		expect(note.fm).not.toHaveProperty("parent");
 		const now = new Date();
@@ -100,29 +108,55 @@ describe("setTitleAndProject", () => {
 		]);
 	});
 
-	it("changes nothing when the root picker is cancelled", async () => {
+	it("changes nothing when the dialog is dismissed", async () => {
 		const note = fakeFile("Untitled.md", { tags: ["supervised", "project"] });
 		const { app, renamed } = fakeApp(note);
-		pick.mockResolvedValueOnce(null);
+		noteDialog.mockResolvedValueOnce(null);
 		// biome-ignore lint/suspicious/noExplicitAny: fake app
 		await setTitleAndProject(app as any);
 		expect(note.fm).not.toHaveProperty("title");
 		expect(renamed).toEqual([]);
 	});
 
-	it("still asks a task note for its project after the root", async () => {
+	it("lists the projects of the chosen root for a task note and writes the chosen one", async () => {
 		const note = fakeFile("Untitled.md", {
 			tags: ["supervised"],
 			uid: "u1",
 		});
 		const { app } = fakeApp(note);
-		pick.mockResolvedValueOnce("sv/personal").mockResolvedValueOnce({
-			f: { path: "sv/personal/2026/10/a.md", basename: "a" },
-			fm: { project_id: "P-0001", title: "A" },
-		});
+		submit((form) => ({
+			root: "sv/personal",
+			project: form.projectsOf("sv/personal")[0],
+			title: "T",
+		}));
 		// biome-ignore lint/suspicious/noExplicitAny: fake app
 		await setTitleAndProject(app as any);
-		expect(calls).toEqual(["closeRenamePrompts", "pick", "pick", "prompt"]);
-		expect(note.fm.parent).toBe("[[sv/personal/2026/10/a|A]]");
+		const form = noteDialog.mock.calls[0][1];
+		expect(form.projectsOf("sv/work")).toEqual([]);
+		expect(form.projectsOf("sv/personal").map(form.projectLabel)).toEqual([
+			"P-0001 a",
+		]);
+		expect(note.fm.parent).toBe("[[sv/personal/2026/10/a|a]]");
+		expect(note.fm.title).toBe("T");
+	});
+
+	it("preselects the current project and removes it when none is chosen", async () => {
+		const note = fakeFile("sv/personal/2026/11/u2.md", {
+			tags: ["supervised"],
+			uid: "u2",
+			title: "Old",
+			parent: "[[sv/personal/2026/10/a|a]]",
+		});
+		const { app, renamed } = fakeApp(note);
+		submit(() => ({ project: null, title: " " }));
+		// biome-ignore lint/suspicious/noExplicitAny: fake app
+		await setTitleAndProject(app as any);
+		const form = noteDialog.mock.calls[0][1];
+		expect(form.root).toBe("sv/personal");
+		expect(form.project.f.path).toBe("sv/personal/2026/10/a.md");
+		expect(form.title).toBe("Old");
+		expect(note.fm).not.toHaveProperty("parent");
+		expect(note.fm.title).toBe("Old");
+		expect(renamed).toEqual([]);
 	});
 });
