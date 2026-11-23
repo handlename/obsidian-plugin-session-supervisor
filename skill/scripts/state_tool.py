@@ -1725,6 +1725,11 @@ def parse_report(text, expect_task=None, expect_worker=None, allow_awaiting_mana
     done_sts = report.get("subtasks_done", [])
     if not isinstance(done_sts, list) or not all(isinstance(i, str) and ST_ID_RE.match(i) for i in done_sts):
         return {"ok": False, "error": "subtasks_done must be a list of ST-NNNN ids"}
+    plan = report.get("subtasks_plan", [])
+    if not isinstance(plan, list) or not all(
+            isinstance(p, dict) and isinstance(p.get("text"), str) and p["text"].strip() and "\n" not in p["text"]
+            and isinstance(p.get("done", False), bool) for p in plan):
+        return {"ok": False, "error": "subtasks_plan must be a list of {text, done?} with one-line texts"}
     confirmed = _read_confirmed_errors(report)
     if confirmed:
         return {"ok": False, "error": confirmed[0]}
@@ -2919,7 +2924,10 @@ def _op_st_add(lines, op, now, rev, index, problems):
     _st_errors("st_add", st)
     if _find_st(lines, st["id"]):
         return []
-    _insert_in_section(lines, ST_SECTION, [_render_st(False, st["id"], st.get("assignee"), st["text"].strip())])
+    if st.get("commit") and not st.get("worker"):
+        raise StateError(f"st_add {st['id']}: a commit needs the worker that made it")
+    _insert_in_section(lines, ST_SECTION, [_render_st(bool(st.get("done")), st["id"], st.get("assignee"), st["text"].strip(),
+                                                      st.get("worker"), st.get("commit"))])
     return [st["id"].lower()]
 
 

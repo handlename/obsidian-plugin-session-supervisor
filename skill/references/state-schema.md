@@ -391,7 +391,7 @@ The `priority` prop (`A`, `B`, or `C`) is the user's alone: `state_tool` never w
 
 ### Subtasks
 
-`## サブタスク` holds the task's subtasks, one top-level checklist line each (an indented line, a fenced block, or a comment is the user's note):
+`## サブタスク` holds the task's subtasks (the user's lines, and the steps workers report as `subtasks_plan`, written as `@agent` lines with their worker), one top-level checklist line each (an indented line, a fenced block, or a comment is the user's note):
 
 ```markdown
 - [x] [ST-0290] hook エラーの調査 (w-0145 e1513f0)
@@ -402,7 +402,7 @@ The `priority` prop (`A`, `B`, or `C`) is the user's alone: `state_tool` never w
 
 `parse_subtasks` reads each as `{id, done, assignee, text, worker, commit}`: `id` is `ST-NNNN` or null for a line the supervisor has not numbered yet, `assignee` is `user` for `@user` and `agent` otherwise (no `@` is the agent's), and the trailing `(w-NNNN)` / `(w-NNNN <sha>)` is the worker it was sent to and the verified commit. `ST-` numbers share the counter of `UA-` / `AA-` (`supervisor.last_ua_number`), so one number names one item; `join_view` raises `last_ua_number` to the highest `ST-` number in the notes. Subtasks are kept only in the note: the view's `subtasks` lists the numbered lines (unnumbered lines are not read until the supervisor numbers them), and `split_view` drops it. `notes-scan` events of task notes and `note-show` carry every line as `subtasks`.
 
-Note ops (all idempotent): `st_adopt {st: {text, id?}}` numbers the first unnumbered line whose text equals `text`; `st_add {st: {text, assignee?, id?}}` appends a numbered line (`@<assignee>` written when given); `st_set {id, done?, assignee?, worker?, commit?}` sets the given fields of a numbered line (`worker: null` removes the trailing mark; a new worker without `commit` drops the old commit; a `commit` needs a worker). A line not found is a `note_problems` entry.
+Note ops (all idempotent): `st_adopt {st: {text, id?}}` numbers the first unnumbered line whose text equals `text`; `st_add {st: {text, assignee?, id?, done?, worker?, commit?}}` appends a numbered line (`@<assignee>` written when given; `done`, `worker`, and `commit` as in `st_set`, for a worker's plan); `st_set {id, done?, assignee?, worker?, commit?}` sets the given fields of a numbered line (`worker: null` removes the trailing mark; a new worker without `commit` drops the old commit; a `commit` needs a worker). A line not found is a `note_problems` entry.
 
 ### User changes (`user_transition`)
 
