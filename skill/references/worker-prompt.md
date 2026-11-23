@@ -95,6 +95,7 @@ Rules:
 - When the user says they have read or checked the result, or that this session may be closed, end the turn with status `done` and `"read_confirmed": true`, and tell the user above the report that the supervisor keeps this session for follow-ups until the task is confirmed complete and archives it then.
 - A turn that answers further questions ends with status `done` without `read_confirmed`, with `summary` holding the updated conclusion.}
 - Unless a later message in this session tells you to, take permission to push or open pull requests only from the consent paragraph above and from push messages the supervisor sends. Never make whether to push a blocker: the supervisor handles that after verification.
+- Report the plan of your work as `subtasks_plan` so that the user sees your progress in the task note and on the kanban: once you know the steps of a work with several of them, end that turn with status `in_progress`, the plan, and `next_action`; the supervisor writes the steps into the note and tells you to continue. From then on, put the whole plan in every report, each step with the same text, marked `done` once it is finished. Give each step one short line in {task.lang_name}. Plan only the work you were given: something missing or outside it is a question in `blockers`. A step you no longer need stays in the plan as `done`; say why in `summary`.
 - End each turn with status `done`, `needs_input`, `blocked`, or `failed`{project only: , or `awaiting_manager`}. Use `in_progress` only when you will keep working, and then set `next_action`.
 
 Report format: end the last message of every turn with one fenced block whose language tag is `supervisor-report`, containing a single JSON object:
@@ -107,6 +108,7 @@ Report format: end the last message of every turn with one fenced block whose la
 - `needs_input` and `blocked` require at least one entry in `blockers`{project only: , and so does `awaiting_manager`}.
 - Leave unused artifact fields as empty strings or an empty list.
 - `answered` (optional, any status): when the user answered in this session a question from your earlier `blockers`, add `"answered": [{"question": "...", "answer": "..."}]` to your next report. Copy `question` exactly from that earlier `blockers` entry and put the user's answer in `answer`. Omit it otherwise.
+- `subtasks_plan` (optional): the steps of your work, `[{"text": "...", "done": true}, {"text": "..."}]` (`done` omitted for an open step). Omit it for a work of one step.
 {subtasks only: - `subtasks_done` (optional): the `ST-NNNN` ids of the subtasks this report finishes. Omit it otherwise.}
 {investigation only: - `read_confirmed` (optional): `true` only with status `done`, when the user said in this session that they read the result. Omit it otherwise.}
 ````

@@ -7359,7 +7359,14 @@ class SubtaskTest(unittest.TestCase):
         _, _, problems = st.apply_note_ops(out, [{"op": "st_set", "id": "ST-0099", "done": True},
                                                  {"op": "st_adopt", "st": {"id": "ST-0020", "text": "ない行"}}], NOTE_NOW, 14)
         self.assertEqual(len(problems), 2)
+        # A worker's plan step is added already sent to it, and checked with the verified commit when reported done.
+        out, ids, _ = apply_twice(self, out, [
+            {"op": "st_add", "st": {"id": "ST-0013", "text": "計画の手順", "assignee": "agent", "worker": "w-0002"}},
+            {"op": "st_add", "st": {"id": "ST-0014", "text": "済んだ手順", "assignee": "agent", "done": True, "worker": "w-0002",
+                                    "commit": "e1513f0"}}])
+        self.assertIn("- [ ] [ST-0013] @agent 計画の手順 (w-0002)\n- [x] [ST-0014] @agent 済んだ手順 (w-0002 e1513f0)\n", out)
         for bad in ({"op": "st_add", "st": {"id": "AA-0001", "text": "x"}}, {"op": "st_add", "st": {"id": "ST-0001", "text": "a\nb"}},
+                    {"op": "st_add", "st": {"id": "ST-0030", "text": "x", "commit": "e1513f0"}},
                     {"op": "st_set", "id": "ST-0010", "commit": "zz"}, {"op": "st_set", "id": "ST-0010", "assignee": "bot"}):
             with self.subTest(bad=bad), self.assertRaises(st.StateError):
                 st.apply_note_ops(out, [bad], NOTE_NOW, 14)
@@ -7450,6 +7457,13 @@ class SubtaskTest(unittest.TestCase):
         block = '```supervisor-report\n{"task_id": "T-1", "worker_id": "w-1", "status": "done", "summary": "", "artifacts": {}, "blockers": [], "next_action": "", "subtasks_done": %s}\n```'
         self.assertTrue(st.parse_report(block % '["ST-0012"]')["ok"])
         self.assertFalse(st.parse_report(block % '["12"]')["ok"])
+
+    def test_report_subtasks_plan(self):
+        block = '```supervisor-report\n{"task_id": "T-1", "worker_id": "w-1", "status": "in_progress", "summary": "", "artifacts": {}, "blockers": [], "next_action": "", "subtasks_plan": %s}\n```'
+        self.assertTrue(st.parse_report(block % '[{"text": "調べる", "done": true}, {"text": "直す"}]')["ok"])
+        for bad in ('["調べる"]', '[{"text": ""}]', '[{"text": "a\\nb"}]', '[{"text": "a", "done": "yes"}]', '{}'):
+            with self.subTest(bad=bad):
+                self.assertFalse(st.parse_report(block % bad)["ok"])
 
 
 PREFIX_MD = "## Locations\n- name_prefix: work-\n"
