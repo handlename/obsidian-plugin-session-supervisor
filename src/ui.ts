@@ -105,18 +105,21 @@ class NoteModal<P> extends Modal {
 					project = (v && list[Number(v)]) || null;
 				});
 			});
-		new Setting(contentEl).setName("タイトル").addText((text) => {
-			text.setValue(title).onChange((v) => {
-				title = v;
+		new Setting(contentEl)
+			.setName("タイトル")
+			.setClass("sv-note-title")
+			.addText((text) => {
+				text.setValue(title).onChange((v) => {
+					title = v;
+				});
+				text.inputEl.addEventListener("keydown", (e) => {
+					if (e.key !== "Enter" || e.isComposing) return;
+					// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
+					e.preventDefault();
+					submit();
+				});
+				window.setTimeout(() => text.inputEl.select(), 0);
 			});
-			text.inputEl.addEventListener("keydown", (e) => {
-				if (e.key !== "Enter" || e.isComposing) return;
-				// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
-				e.preventDefault();
-				submit();
-			});
-			window.setTimeout(() => text.inputEl.select(), 0);
-		});
 		new Setting(contentEl).addButton((b) =>
 			b.setButtonText("OK").setCta().onClick(submit),
 		);
