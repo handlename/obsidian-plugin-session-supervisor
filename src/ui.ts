@@ -45,40 +45,82 @@ export function pick<T>(
 	);
 }
 
-class PromptModal extends Modal {
-	private value: string;
+export interface NoteForm<P> {
+	/** The roots to choose from; no root dropdown when empty. */
+	roots: string[];
+	root: string;
+	/** The projects of a root; no project dropdown when undefined (a project note). */
+	projectsOf?: (root: string) => P[];
+	projectLabel: (project: P) => string;
+	project: P | null;
+	title: string;
+}
+
+class NoteModal<P> extends Modal {
 	private done = false;
 
 	constructor(
 		app: App,
-		private title: string,
-		initial: string,
-		private resolve: (value: string | null) => void,
+		private form: NoteForm<P>,
+		private resolve: (form: NoteForm<P> | null) => void,
 	) {
 		super(app);
-		this.value = initial;
 	}
 
 	onOpen(): void {
-		this.setTitle(this.title);
+		const form = this.form;
+		const contentEl = this.contentEl;
+		let { root, project, title } = form;
 		const submit = () => {
 			this.done = true;
-			this.resolve(this.value);
+			this.resolve({ ...form, root, project, title });
 			this.close();
 		};
-		new Setting(this.contentEl).addText((text) => {
-			text.setValue(this.value).onChange((v) => {
-				this.value = v;
+		this.setTitle("タイトルとプロジェクト");
+		let fillProjects = () => {};
+		if (form.roots.length)
+			new Setting(contentEl).setName("Root").addDropdown((d) => {
+				for (const r of form.roots) d.addOption(r, r || "(vault)");
+				d.setValue(root).onChange((v) => {
+					root = v;
+					fillProjects();
+				});
 			});
-			text.inputEl.addEventListener("keydown", (e) => {
-				if (e.key !== "Enter" || e.isComposing) return;
-				// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
-				e.preventDefault();
-				submit();
+		const { projectsOf } = form;
+		if (projectsOf)
+			new Setting(contentEl).setName("プロジェクト").addDropdown((d) => {
+				let list: P[] = [];
+				fillProjects = () => {
+					list = projectsOf(root);
+					if (project && !list.includes(project)) project = null;
+					d.selectEl.empty();
+					d.addOption("", "(プロジェクトなし)");
+					list.forEach((p, i) => {
+						d.addOption(String(i), form.projectLabel(p));
+					});
+					d.setValue(project ? String(list.indexOf(project)) : "");
+				};
+				fillProjects();
+				d.onChange((v) => {
+					project = (v && list[Number(v)]) || null;
+				});
 			});
-			window.setTimeout(() => text.inputEl.select(), 0);
-		});
-		new Setting(this.contentEl).addButton((b) =>
+		new Setting(contentEl)
+			.setName("タイトル")
+			.setClass("sv-note-title")
+			.addText((text) => {
+				text.setValue(title).onChange((v) => {
+					title = v;
+				});
+				text.inputEl.addEventListener("keydown", (e) => {
+					if (e.key !== "Enter" || e.isComposing) return;
+					// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
+					e.preventDefault();
+					submit();
+				});
+				window.setTimeout(() => text.inputEl.select(), 0);
+			});
+		new Setting(contentEl).addButton((b) =>
 			b.setButtonText("OK").setCta().onClick(submit),
 		);
 	}
@@ -89,15 +131,12 @@ class PromptModal extends Modal {
 	}
 }
 
-/** Asks for one line of text; null when the dialog is dismissed. */
-export function prompt(
+/** Asks the root, the project, and the title of a note in one dialog; null when the dialog is dismissed. */
+export function noteDialog<P>(
 	app: App,
-	title: string,
-	initial: string,
-): Promise<string | null> {
-	return new Promise((resolve) =>
-		new PromptModal(app, title, initial, resolve).open(),
-	);
+	form: NoteForm<P>,
+): Promise<NoteForm<P> | null> {
+	return new Promise((resolve) => new NoteModal(app, form, resolve).open());
 }
 
 /** Closes Obsidian's rename dialogs (Templater opens one for each note it creates). */

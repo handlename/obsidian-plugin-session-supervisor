@@ -16,7 +16,9 @@
 
    And it hides the supervisor's metadata in Live Preview: HTML comments (`<!-- sv ... -->`) and
    block ids (`^sv-log-1`) disappear except on the line the cursor is on, so they stay editable.
-   Reading view already hides both; comment tokens inside code blocks are left alone. */
+   Reading view already hides both; comment tokens inside code blocks are left alone.
+
+   And it widens the title input of the "タイトルとプロジェクトを設定" dialog to the rest of its row. */
 
 :root {
   --sv-kanban-line: 20px;
@@ -74,4 +76,8 @@
 
 .markdown-source-view.is-live-preview .cm-line:not(.cm-active, .HyperMD-codeblock) :is(.cm-comment, .cm-blockid) {
   display: none;
+}
+
+.sv-note-title .setting-item-info {
+  flex: 0 0 auto;
 }
