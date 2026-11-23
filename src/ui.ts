@@ -71,7 +71,10 @@ class PromptModal extends Modal {
 				this.value = v;
 			});
 			text.inputEl.addEventListener("keydown", (e) => {
-				if (e.key === "Enter" && !e.isComposing) submit();
+				if (e.key !== "Enter" || e.isComposing) return;
+				// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
+				e.preventDefault();
+				submit();
 			});
 			window.setTimeout(() => text.inputEl.select(), 0);
 		});
