@@ -41,3 +41,34 @@ export function datedFolder(root: string, date: Date): string {
 	const month = String(date.getMonth() + 1).padStart(2, "0");
 	return `${root ? `${root}/` : ""}${date.getFullYear()}/${month}`;
 }
+
+/**
+ * The tags a project gives its tasks: its `project_tag` (a list, or a string of tags split by spaces or commas) without
+ * `#` and the management tags, which would change what the task is.
+ */
+export function projectTags(value: unknown): string[] {
+	const items = Array.isArray(value) ? value : [value];
+	return [
+		...new Set(
+			items
+				.filter((v): v is string => typeof v === "string")
+				.flatMap((v) => v.split(/[\s,]+/))
+				.map((t) => t.replace(/^#/, ""))
+				.filter((t) => t && !["supervised", "project", "task"].includes(t)),
+		),
+	];
+}
+
+/** tags without the ones of removed, then the ones of added it lacks; null when nothing changes. */
+export function retag(
+	tags: unknown,
+	removed: string[],
+	added: string[],
+): string[] | null {
+	const old = ([] as unknown[]).concat(tags ?? []).map(String);
+	const kept = old.filter((t) => added.includes(t) || !removed.includes(t));
+	const next = [...kept, ...added.filter((t) => !kept.includes(t))];
+	return next.length === old.length && next.every((t, i) => t === old[i])
+		? null
+		: next;
+}

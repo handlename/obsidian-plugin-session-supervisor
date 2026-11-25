@@ -5,10 +5,31 @@ import {
 	folderRoot,
 	managedRoots,
 	parentLink,
+	projectTags,
+	retag,
 	uidPath,
 } from "../src/project";
 
 describe("project helpers", () => {
+	it("reads project_tag as a list or a string, without # and management tags", () => {
+		expect(projectTags(["home", "#iot", "home", "project"])).toEqual([
+			"home",
+			"iot",
+		]);
+		expect(projectTags("a, #b  c")).toEqual(["a", "b", "c"]);
+		expect(projectTags(undefined)).toEqual([]);
+	});
+
+	it("swaps tags and reports no change", () => {
+		expect(retag(["supervised", "old", "keep"], ["old"], ["new"])).toEqual([
+			"supervised",
+			"keep",
+			"new",
+		]);
+		expect(retag("supervised", [], ["a"])).toEqual(["supervised", "a"]);
+		expect(retag(["supervised", "a"], ["a"], ["a"])).toBeNull();
+	});
+
 	it("strips a trailing /YYYY/MM to get the root", () => {
 		expect(folderRoot("supervisor/work/2026/11")).toBe("supervisor/work");
 		expect(folderRoot("supervisor/work")).toBe("supervisor/work");

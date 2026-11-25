@@ -13,6 +13,8 @@ import {
 	folderRoot,
 	managedRoots,
 	parentLink,
+	projectTags,
+	retag,
 	uidPath,
 } from "./project";
 import { closeRenamePrompts, noteDialog, pick } from "./ui";
@@ -22,6 +24,13 @@ type Frontmatter = Record<string, unknown>;
 const tagsOf = (fm: Frontmatter) => ([] as unknown[]).concat(fm.tags ?? []);
 const fmOf = (app: App, file: TFile): Frontmatter =>
 	app.metadataCache.getFileCache(file)?.frontmatter ?? {};
+/** The note the `parent` property of file links to. */
+function parentOf(app: App, file: TFile): TFile | null {
+	const link = app.metadataCache
+		.getFileCache(file)
+		?.frontmatterLinks?.find((l) => l.key === "parent")?.link;
+	return link ? app.metadataCache.getFirstLinkpathDest(link, file.path) : null;
+}
 
 /** The note text including unsaved edits: the open editor's buffer, else the file on disk. */
 async function currentText(app: App, file: TFile): Promise<string> {
@@ -69,7 +78,9 @@ export async function changeStatus(app: App): Promise<void> {
  * Asks the root, the project (or none) of a task note in that root, and the title in one dialog, writes `title` and
  * `parent`, and renames the note to its uid. Choosing another root than the note's (preselected for a note outside
  * every root, for example one a template plugin created at the vault's top) moves it to <root>/YYYY/MM. A project note
- * (tagged `project`) gets no project. An empty title keeps the title; dismissing the dialog changes nothing.
+ * (tagged `project`) gets no project but its `project_tag`, which replaces the old one in the tags of the tasks linking
+ * it; a task gets its project's `project_tag` in its tags and loses the ones of its former project. An empty title
+ * keeps the title; dismissing the dialog changes nothing.
  * Obsidian's own "Note title" rename dialog, which Templater opens for a note it creates, is closed first so that the
  * title is asked once.
  */
@@ -113,6 +124,7 @@ export async function setTitleAndProject(app: App): Promise<void> {
 				String(a.fm.project_id).localeCompare(String(b.fm.project_id)),
 			);
 	const isProject = tagsOf(own).includes("project");
+	const oldTags = projectTags(own.project_tag);
 	const form = await noteDialog(app, {
 		roots,
 		root: roots.includes(ownRoot) ? ownRoot : (roots[0] ?? ownRoot),
@@ -125,6 +137,7 @@ export async function setTitleAndProject(app: App): Promise<void> {
 				),
 			) ?? null,
 		title: defaultTitle(own.title, file.basename),
+		projectTag: isProject ? oldTags.join(" ") : undefined,
 	});
 	if (!form) return;
 	const folder =
@@ -132,7 +145,23 @@ export async function setTitleAndProject(app: App): Promise<void> {
 	const moving = folder !== here;
 	const choice = form.project;
 	const newTitle = form.title.trim();
+	const newTags = projectTags(form.projectTag);
+	const oldParent = isProject ? null : parentOf(app, file);
+	const removed = oldParent
+		? projectTags(fmOf(app, oldParent).project_tag)
+		: [];
 	await app.fileManager.processFrontMatter(file, (front: Frontmatter) => {
+		if (isProject) {
+			if (newTags.length) front.project_tag = newTags;
+			else delete front.project_tag;
+		} else {
+			const tags = retag(
+				front.tags,
+				removed,
+				choice ? projectTags(choice.fm.project_tag) : [],
+			);
+			if (tags) front.tags = tags;
+		}
 		if (choice) {
 			front.parent = parentLink(
 				choice.f.path,
@@ -143,6 +172,15 @@ export async function setTitleAndProject(app: App): Promise<void> {
 		}
 		if (newTitle) front.title = newTitle;
 	});
+	if (isProject) {
+		for (const { f, fm } of notes) {
+			if (parentOf(app, f)?.path !== file.path) continue;
+			if (!retag(fm.tags, oldTags, newTags)) continue;
+			await app.fileManager.processFrontMatter(f, (front: Frontmatter) => {
+				front.tags = retag(front.tags, oldTags, newTags) ?? front.tags;
+			});
+		}
+	}
 	// Read the uid from the file: the metadata cache may not have caught up with a note just created.
 	const after = getFrontMatterInfo(await app.vault.read(file));
 	const uid = after.exists ? parseYaml(after.frontmatter)?.uid : undefined;

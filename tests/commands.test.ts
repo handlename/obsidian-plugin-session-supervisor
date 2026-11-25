@@ -41,6 +41,11 @@ function fakeApp(active: ReturnType<typeof fakeFile>) {
 		fakeFile("sv/personal/2026/10/a.md", {
 			tags: ["supervised", "project"],
 			project_id: "P-0001",
+			project_tag: ["home"],
+		}),
+		fakeFile("sv/personal/2026/10/c.md", {
+			tags: ["supervised", "home"],
+			parent: "[[sv/personal/2026/10/a|a]]",
 		}),
 		fakeFile("sv/work/2026/10/b.md", {
 			tags: ["supervised"],
@@ -52,7 +57,15 @@ function fakeApp(active: ReturnType<typeof fakeFile>) {
 	const app = {
 		workspace: { getActiveFile: () => active },
 		metadataCache: {
-			getFileCache: (f: { fm: Fm }) => ({ frontmatter: f.fm }),
+			getFileCache: (f: { fm: Fm }) => ({
+				frontmatter: f.fm,
+				frontmatterLinks:
+					typeof f.fm.parent === "string"
+						? [{ key: "parent", link: f.fm.parent.slice(2, -2).split("|")[0] }]
+						: [],
+			}),
+			getFirstLinkpathDest: (link: string) =>
+				[active, ...others].find((f) => f.path === `${link}.md`) ?? null,
 		},
 		vault: {
 			getMarkdownFiles: () => [active, ...others],
@@ -67,7 +80,7 @@ function fakeApp(active: ReturnType<typeof fakeFile>) {
 			renameFile: async (_f: unknown, dest: string) => renamed.push(dest),
 		},
 	};
-	return { app, renamed, created };
+	return { app, renamed, created, others };
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: the form the command passes
@@ -158,5 +171,54 @@ describe("setTitleAndProject", () => {
 		expect(note.fm).not.toHaveProperty("parent");
 		expect(note.fm.title).toBe("Old");
 		expect(renamed).toEqual([]);
+	});
+
+	it("gives a task the tags of its project and drops those of the former one", async () => {
+		const note = fakeFile("sv/personal/2026/10/t.md", {
+			tags: ["supervised", "home", "mine"],
+			parent: "[[sv/personal/2026/10/a|a]]",
+		});
+		const { app } = fakeApp(note);
+		submit(() => ({ project: null }));
+		// biome-ignore lint/suspicious/noExplicitAny: fake app
+		await setTitleAndProject(app as any);
+		expect(note.fm.tags).toEqual(["supervised", "mine"]);
+		expect(noteDialog.mock.calls[0][1].projectTag).toBeUndefined();
+		submit(() => ({
+			project: {
+				f: { path: "sv/personal/2026/10/a.md", basename: "a" },
+				fm: { project_id: "P-0001", project_tag: "work" },
+			},
+		}));
+		// biome-ignore lint/suspicious/noExplicitAny: fake app
+		await setTitleAndProject(app as any);
+		expect(note.fm.tags).toEqual(["supervised", "mine", "work"]);
+	});
+
+	it("shows a project its tags and retags its tasks with the new ones", async () => {
+		const project = fakeFile("sv/personal/2026/10/a.md", {
+			tags: ["supervised", "project"],
+			project_tag: ["home"],
+		});
+		const { app, others } = fakeApp(project);
+		submit(() => ({ projectTag: "#iot office" }));
+		// biome-ignore lint/suspicious/noExplicitAny: fake app
+		await setTitleAndProject(app as any);
+		expect(noteDialog.mock.calls[0][1].projectTag).toBe("home");
+		expect(project.fm.project_tag).toEqual(["iot", "office"]);
+		expect(others[1].fm.tags).toEqual(["supervised", "iot", "office"]);
+	});
+
+	it("removes project_tag when the field is emptied", async () => {
+		const project = fakeFile("sv/personal/2026/10/a.md", {
+			tags: ["supervised", "project"],
+			project_tag: ["home"],
+		});
+		const { app, others } = fakeApp(project);
+		submit(() => ({ projectTag: "" }));
+		// biome-ignore lint/suspicious/noExplicitAny: fake app
+		await setTitleAndProject(app as any);
+		expect(project.fm).not.toHaveProperty("project_tag");
+		expect(others[1].fm.tags).toEqual(["supervised"]);
 	});
 });

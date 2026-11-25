@@ -5841,6 +5841,17 @@ class ProposalNoteTest(unittest.TestCase):
         self.assertEqual(props["parent"], f"[[{U3}|Lock の  Matter    対応]]")
         self.assertEqual(st.parent_project_id({"projects": [{"id": "P-0001", "uid": U3}]}, props["parent"]), "P-0001")
 
+    def test_task_gets_the_project_tags(self):
+        project = st.new_note_text(U3, "P", "project", "in progress", "agent", NOTE_NOW, "ctx").replace(
+            "tags:", "project_tag:\n  - home\n  - \"#iot\"\n  - supervised\ntags:", 1)
+        ops = {U1: [{"op": "create", "uid": U1, "title": "a", "kind": "task", "status": "backlog", "assignee": "user",
+                     "parent": U3}]}
+        st._fill_parent_titles(ops, {U3: project})
+        self.assertEqual(ops[U1][0]["parent_tags"], ["home", "iot"])
+        props = st.parse_frontmatter(st.apply_note_ops("", ops[U1], NOW, 1)[0])[0]
+        self.assertEqual(props["tags"], ["supervised", "home", "iot"])
+        self.assertEqual(st.project_tags("a, #b a"), ["a", "b"])
+
     def test_task_from_a_proposal_note_takes_title_and_text_from_it(self):
         task = v2_git_task(self.state, self.notes, "T-0020", "w-0020", U1, intended="pending", observed="none")
         task.update(project_id="P-0001", proposal={"from": "P-0001", "message_ref": f"note:{U1}"})

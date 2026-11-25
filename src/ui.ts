@@ -54,6 +54,8 @@ export interface NoteForm<P> {
 	projectLabel: (project: P) => string;
 	project: P | null;
 	title: string;
+	/** The project tags, space separated; no field when undefined (a task note). */
+	projectTag?: string;
 }
 
 class NoteModal<P> extends Modal {
@@ -70,11 +72,17 @@ class NoteModal<P> extends Modal {
 	onOpen(): void {
 		const form = this.form;
 		const contentEl = this.contentEl;
-		let { root, project, title } = form;
+		let { root, project, title, projectTag } = form;
 		const submit = () => {
 			this.done = true;
-			this.resolve({ ...form, root, project, title });
+			this.resolve({ ...form, root, project, title, projectTag });
 			this.close();
+		};
+		const submitOnEnter = (e: KeyboardEvent) => {
+			if (e.key !== "Enter" || e.isComposing) return;
+			// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
+			e.preventDefault();
+			submit();
 		};
 		this.setTitle("タイトルとプロジェクト");
 		let fillProjects = () => {};
@@ -112,14 +120,20 @@ class NoteModal<P> extends Modal {
 				text.setValue(title).onChange((v) => {
 					title = v;
 				});
-				text.inputEl.addEventListener("keydown", (e) => {
-					if (e.key !== "Enter" || e.isComposing) return;
-					// Without this the Enter also lands in the editor that gets the focus back, as a line before the frontmatter.
-					e.preventDefault();
-					submit();
-				});
+				text.inputEl.addEventListener("keydown", submitOnEnter);
 				window.setTimeout(() => text.inputEl.select(), 0);
 			});
+		if (projectTag !== undefined)
+			new Setting(contentEl)
+				.setName("プロジェクトタグ")
+				.setDesc("任意。空白区切りで、紐づくタスクにも付きます")
+				.setClass("sv-note-title")
+				.addText((text) => {
+					text.setValue(projectTag ?? "").onChange((v) => {
+						projectTag = v;
+					});
+					text.inputEl.addEventListener("keydown", submitOnEnter);
+				});
 		new Setting(contentEl).addButton((b) =>
 			b.setButtonText("OK").setCta().onClick(submit),
 		);

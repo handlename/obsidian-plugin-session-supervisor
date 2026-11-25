@@ -2179,9 +2179,10 @@ def note_kind(props):
 
 
 def new_note_text(uid, title, kind, status, assignee, now, request="", parent=None, follows=None, original=None,
-                  proposed_by=None, parent_title=None):
+                  proposed_by=None, parent_title=None, parent_tags=()):
     """Text of a new task or project note in the create-task format. parent and follows are note uids; parent_title (the
-    project's title) becomes the alias of the parent link, as the plugin's project command writes it. original (the
+    project's title) becomes the alias of the parent link, as the plugin's project command writes it; parent_tags (the
+    project's project_tag) follow the note's own tags, as the plugin's project command adds them. original (the
     chat message the request was written from) follows the request as a folded 依頼の原文 callout. proposed_by is the
     P-id of the project manager whose proposal the note holds."""
     if kind not in ("task", "project"):
@@ -2191,7 +2192,9 @@ def new_note_text(uid, title, kind, status, assignee, now, request="", parent=No
     alias = "|" + re.sub(r'[|\]"]', " ", parent_title) if parent_title else ""
     values = {
         "uid": uid, "title": title, "para": "Project", "aliases": [], "created_at": f"{now[:10]} {now[11:19]}",
-        "archived_at": None, "tags": list(NOTE_TAGS[kind]), "start_date": None, "due_date": None, "pending_until": None,
+        "archived_at": None,
+        "tags": list(NOTE_TAGS[kind]) + project_tags(list(parent_tags or ())),
+        "start_date": None, "due_date": None, "pending_until": None,
         "completed_at": None, "status": status, "assignee": assignee, "summary": None,
         "parent": f"[[{parent}{alias}]]" if parent else None, "follows": f"[[{follows}]]" if follows else None,
         "proposed_by": proposed_by,
@@ -3170,7 +3173,7 @@ def apply_note_ops(text, ops, now, rev):
                 text = new_note_text(op["uid"], op["title"], op["kind"], op["status"], op["assignee"], now,
                                      escape_comment_marks(op.get("request", "")), op.get("parent"), op.get("follows"),
                                      escape_comment_marks(op.get("original")),
-                                     op.get("proposed_by"), op.get("parent_title"))
+                                     op.get("proposed_by"), op.get("parent_title"), op.get("parent_tags"))
             continue
         if name == "assign_uid":
             props, _, errors = parse_frontmatter(text)
@@ -4442,16 +4445,30 @@ def _numbered_ops(raw_ops, candidate, base, view_cur):
     return number_note_ops(raw_ops, next_ua, art_last)
 
 
+def project_tags(value):
+    """The tags a project gives its tasks: its project_tag (a list, or a string of tags split by spaces or commas)
+    without `#` and the management tags, as the plugin reads it."""
+    items = value if isinstance(value, list) else [value]
+    tags = [t.lstrip("#") for v in items if isinstance(v, str) for t in re.split(r"[\s,]+", v)]
+    return list(dict.fromkeys(t for t in tags if t and t not in NOTE_TAGS["project"]))
+
+
 def _fill_parent_titles(ops, notes):
-    """Give each create op with a parent the parent note's title (parent_title), from a create op of the same commit or
-    the note in the vault, so the new note's parent link shows the project's name. The ops are journaled with it."""
+    """Give each create op with a parent the parent note's title (parent_title) and project_tag (parent_tags), from a
+    create op of the same commit or the note in the vault, so the new note's parent link shows the project's name and
+    the note has the project's tags. The ops are journaled with them."""
     titles = {uid: o.get("title") for uid, items in ops.items() for o in items if o.get("op") == "create"}
     for items in ops.values():
         for op in items:
-            if op.get("op") == "create" and op.get("parent") and not op.get("parent_title"):
-                title = titles.get(op["parent"]) or parse_frontmatter(notes.get(op["parent"]) or "")[0].get("title")
+            if op.get("op") != "create" or not op.get("parent"):
+                continue
+            props = parse_frontmatter(notes.get(op["parent"]) or "")[0]
+            if not op.get("parent_title"):
+                title = titles.get(op["parent"]) or props.get("title")
                 if isinstance(title, str) and title.strip():
                     op["parent_title"] = title.strip()
+            if "parent_tags" not in op and project_tags(props.get("project_tag")):
+                op["parent_tags"] = project_tags(props.get("project_tag"))
 
 
 NOTE_PROPS_HEADING = "## Note props"
