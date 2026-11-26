@@ -81,3 +81,7 @@
 .sv-note-title .setting-item-info {
   flex: 0 0 auto;
 }
+
+.sv-note-title textarea {
+  flex: 1;
+}

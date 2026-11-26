@@ -6,7 +6,7 @@ import {
 	parseYaml,
 	type TFile,
 } from "obsidian";
-import { availableMoves, noteBody } from "./moves";
+import { availableMoves, noteBody, withArchiveReason } from "./moves";
 import {
 	datedFolder,
 	defaultTitle,
@@ -17,7 +17,7 @@ import {
 	retag,
 	uidPath,
 } from "./project";
-import { closeRenamePrompts, noteDialog, pick } from "./ui";
+import { askReason, closeRenamePrompts, noteDialog, pick } from "./ui";
 
 type Frontmatter = Record<string, unknown>;
 
@@ -38,7 +38,10 @@ async function currentText(app: App, file: TFile): Promise<string> {
 	return view?.file === file ? view.editor.getValue() : app.vault.read(file);
 }
 
-/** Changes status/assignee of the active supervised note to a value notes-scan classifies (state_tool.py user_transition). */
+/**
+ * Changes status/assignee of the active supervised note to a value notes-scan classifies (state_tool.py user_transition).
+ * A move to archived first asks a reason and writes it into `## アーカイブ理由`; dismissing that dialog changes nothing.
+ */
 export async function changeStatus(app: App): Promise<void> {
 	const file = app.workspace.getActiveFile();
 	if (!file || !tagsOf(fmOf(app, file)).includes("supervised")) {
@@ -68,6 +71,12 @@ export async function changeStatus(app: App): Promise<void> {
 	const move = await pick(app, moves, (m) => `${m.label}(${m.to})`);
 	if (!move) return;
 	const [status, assignee] = move.to.split("/");
+	if (status === "archived") {
+		const reason = await askReason(app, "アーカイブ理由");
+		if (reason === null) return;
+		if (reason.trim())
+			await app.vault.process(file, (t) => withArchiveReason(t, reason));
+	}
 	await app.fileManager.processFrontMatter(file, (front: Frontmatter) => {
 		front.status = status;
 		front.assignee = assignee;

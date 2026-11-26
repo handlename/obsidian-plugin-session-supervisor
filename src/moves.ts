@@ -73,3 +73,28 @@ export function availableMoves(note: NoteState): Move[] {
 			(m.when === undefined || when[m.when]),
 	);
 }
+
+export const ARCHIVE_REASON_SECTION = "アーカイブ理由";
+
+/**
+ * text with reason as the body of `## アーカイブ理由`: an existing one is replaced; a new one goes where state_tool keeps
+ * `## 完了報告`, before `## 関連ノート`, `## 関連資料`, or `## ログ`, else at the end. state_tool keeps sections it does not
+ * know as they are.
+ */
+export function withArchiveReason(text: string, reason: string): string {
+	const lines = text.split("\n");
+	const head = `## ${ARCHIVE_REASON_SECTION}`;
+	const block = [head, "", reason.trim(), ""];
+	const start = lines.indexOf(head);
+	if (start >= 0) {
+		const end = lines.findIndex((l, i) => i > start && /^#{1,2} /.test(l));
+		lines.splice(start, (end < 0 ? lines.length : end) - start, ...block);
+		return lines.join("\n");
+	}
+	const next = lines.findIndex((l) =>
+		["## 関連ノート", "## 関連資料", "## ログ"].includes(l),
+	);
+	if (next < 0) return `${text.replace(/\n*$/, "")}\n\n${block.join("\n")}`;
+	lines.splice(next, 0, ...(lines[next - 1]?.trim() ? [""] : []), ...block);
+	return lines.join("\n");
+}

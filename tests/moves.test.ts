@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { availableMoves, guards, noteBody } from "../src/moves";
+import {
+	availableMoves,
+	guards,
+	noteBody,
+	withArchiveReason,
+} from "../src/moves";
 
 const DIR = "skill/tests/fixtures/notes-gen";
 const expected: Record<
@@ -73,5 +78,39 @@ describe("availableMoves", () => {
 			"保留(pending/user)",
 			"取り消す(archived/user)",
 		]);
+	});
+});
+
+describe("withArchiveReason", () => {
+	const note = readFileSync(`${DIR}/task-done-only.md`, "utf8");
+	const heads = (text: string) =>
+		text.split("\n").filter((l) => l.startsWith("## "));
+
+	it("adds the section before 関連ノート", () => {
+		const got = withArchiveReason(note, " 不要になった\n");
+		expect(heads(got)).toEqual([
+			"## 概要",
+			"## 完了条件",
+			"## サブタスク",
+			"## アクション",
+			"## 成果物",
+			"## 完了報告",
+			"## アーカイブ理由",
+			"## 関連ノート",
+			"## 関連資料",
+			"## ログ",
+		]);
+		expect(got).toContain("## アーカイブ理由\n\n不要になった\n\n## 関連ノート");
+	});
+
+	it("replaces the body of an existing section", () => {
+		const got = withArchiveReason(withArchiveReason(note, "a"), "b");
+		expect(got).toBe(withArchiveReason(note, "b"));
+	});
+
+	it("appends to a note without the later sections", () => {
+		expect(withArchiveReason("---\na: 1\n---\n## 概要\n\nx\n", "r")).toBe(
+			"---\na: 1\n---\n## 概要\n\nx\n\n## アーカイブ理由\n\nr\n",
+		);
 	});
 });

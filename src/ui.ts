@@ -163,3 +163,55 @@ export function closeRenamePrompts(): void {
 			button.click();
 		});
 }
+
+class ReasonModal extends Modal {
+	private done = false;
+
+	constructor(
+		app: App,
+		private title: string,
+		private resolve: (reason: string | null) => void,
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		let reason = "";
+		const submit = () => {
+			this.done = true;
+			this.resolve(reason);
+			this.close();
+		};
+		this.setTitle(this.title);
+		new Setting(this.contentEl)
+			.setName("理由")
+			.setDesc("任意。Ctrl/Cmd+Enter で確定")
+			.setClass("sv-note-title")
+			.addTextArea((text) => {
+				text.onChange((v) => {
+					reason = v;
+				});
+				text.inputEl.rows = 4;
+				text.inputEl.addEventListener("keydown", (e) => {
+					if (e.key !== "Enter" || e.isComposing || !(e.metaKey || e.ctrlKey))
+						return;
+					e.preventDefault();
+					submit();
+				});
+				window.setTimeout(() => text.inputEl.focus(), 0);
+			});
+		new Setting(this.contentEl).addButton((b) =>
+			b.setButtonText("OK").setCta().onClick(submit),
+		);
+	}
+
+	onClose(): void {
+		if (!this.done) this.resolve(null);
+		this.contentEl.empty();
+	}
+}
+
+/** Asks a free-text reason; null when the dialog is dismissed. */
+export function askReason(app: App, title: string): Promise<string | null> {
+	return new Promise((resolve) => new ReasonModal(app, title, resolve).open());
+}
