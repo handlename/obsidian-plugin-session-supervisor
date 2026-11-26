@@ -23,8 +23,9 @@ export function noteBody(text: string): string[] {
 
 /**
  * The `when` guards of the moves, from the note body (state_tool.py's note format).
- * state_tool never writes done/agent: a finished task shows in progress/user with only its completion ask
- * (auto=task_done) open, and a project the manager proposes as done shows in progress/user with its completion ask.
+ * A finished task shows in progress/user with only its completion ask (auto=task_done) open, or done/agent when it
+ * belongs to a batch and waits for its review task; a project the manager proposes as done shows in progress/user
+ * with its completion ask.
  */
 export function guards(body: string[], managed: boolean): Guards {
 	// The metadata line is right below the heading, or after one blank line (0.65.3 and later).

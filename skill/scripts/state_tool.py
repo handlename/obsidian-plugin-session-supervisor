@@ -637,6 +637,9 @@ def derive_status(task, workers_by_id):
     # turn: the user checks it, or hands the note back to the agent with it unchecked to have it done.
     if any(not st.get("done") for st in task.get("subtasks", [])):
         return "needs_user"
+    # A review task of a batch (SKILL.md 6.16) has no work of its own: it only waits for the user's confirmation.
+    if not workers and task.get("reviews"):
+        return "done"
     # Workers given up as missing deliver nothing, and a replaced worker was never verified;
     # without one verified archive the task needs a replacement or a cancel. An investigation
     # worker that went missing while held has its verified findings, so it counts as finished.
@@ -683,6 +686,56 @@ def serial_status(state, task_id, cwd=None):
                 return out
         pred = item.get("after")
     return out
+
+
+def _awaiting_review(task):
+    """A batch member (SKILL.md 6.16) whose only open user action is its completion ask: its work is finished and
+    waits for the user's confirmation through the batch's review task."""
+    actions = task.get("user_actions", [])
+    return bool(task.get("batch") and actions) and all(ua.get("detector") == "task_done" for ua in actions)
+
+
+def _batch_errors(state):
+    errors = []
+    tasks = {t["id"]: t for t in state["tasks"]}
+    for t in state["tasks"]:
+        if t.get("batch") is not None and not (isinstance(t["batch"], str) and TASK_ID_RE.match(t["batch"])):
+            errors.append(f"task {t['id']}: batch must be the T-id of the first task of the batch")
+        reviews = t.get("reviews")
+        if reviews is not None and not (isinstance(reviews, list) and reviews and len(set(reviews)) == len(reviews)
+                                        and all(isinstance(r, str) and TASK_ID_RE.match(r) and r != t["id"] for r in reviews)):
+            errors.append(f"task {t['id']}: reviews must be a non-empty list of distinct T-ids of other tasks")
+        elif reviews and t.get("batch"):
+            errors.append(f"task {t['id']}: a review task has no batch")
+        elif reviews and any(tasks.get(r, {}).get("reviews") for r in reviews):
+            errors.append(f"task {t['id']}: reviews must not name a review task")
+    return errors
+
+
+def _batch_review_errors(current, state):
+    """Once every live member of a batch waits for confirmation, a review task must cover them (step 3 of 6.16), and
+    the user's confirmation of a review task confirms the members it covers that still wait (step 5)."""
+    errors = []
+    was_confirmed = {t["id"] for t in current["tasks"] if t.get("confirmed")}
+    tasks = {t["id"]: t for t in state["tasks"]}
+    for t in state["tasks"]:
+        if t.get("reviews") and t.get("confirmed") and t["id"] not in was_confirmed:
+            left = [r for r in t["reviews"] if r in tasks and not tasks[r].get("confirmed")
+                    and not tasks[r].get("cancel") and _awaiting_review(tasks[r])]
+            if left:
+                errors.append(f"the user confirmed review task {t['id']}: record confirmed on {', '.join(left)} too")
+    reviewed = {r for t in state["tasks"] if t.get("reviews") and not t.get("confirmed") and not t.get("cancel")
+                for r in t["reviews"]}
+    batches = {}
+    for t in state["tasks"]:
+        if t.get("batch") and not t.get("confirmed") and not t.get("cancel"):
+            batches.setdefault(t["batch"], []).append(t)
+    for key, members in batches.items():
+        missing = [t["id"] for t in members if t["id"] not in reviewed]
+        if all(_awaiting_review(t) for t in members) and missing:
+            errors.append(f"batch {key} is finished: create its review task (a task of a new note with reviews "
+                          f"{missing}, no workers, and report_set with their results)")
+    return errors
 
 
 def _after_errors(state):
@@ -877,7 +930,7 @@ def _shape_errors(state):
         derived = t.get("derived_from")
         if derived is not None and not (isinstance(derived, dict) and all(_str(derived.get(k)) for k in ("task_id", "context"))):
             errors.append(f"task {t['id']}: derived_from must be {{task_id, context}} with non-empty strings")
-    errors += _after_errors(state)
+    errors += _after_errors(state) + _batch_errors(state)
     for w in state["workers"]:
         for key in ("task_id", "cwd"):
             if not isinstance(w.get(key), str):
@@ -1128,8 +1181,8 @@ def validate(state, relief=None):
         if task.get("status") is not None and task.get("status") not in TASK_STATUSES:
             errors.append(f"{prefix}: invalid status {task.get('status')!r}")
         # A task waiting for the user's answer to where it should run has no worker yet.
-        # A cancelled one may have none left: commit archives it.
-        if (not task.get("worker_ids") and not task.get("cancel")
+        # A cancelled one may have none left: commit archives it. A review task of a batch (6.16) has no work of its own.
+        if (not task.get("worker_ids") and not task.get("cancel") and not task.get("reviews")
                 and not any(ua.get("needs_answer") for ua in task.get("user_actions", []))):
             errors.append(f"{prefix}: worker_ids must not be empty")
         for wid in task.get("worker_ids", []):
@@ -1467,6 +1520,9 @@ WAITING_START = {"en": "Waiting task {task_id} can start now: send any message t
 
 COMPLETION_ASK = {"en": "The work is done: check the grounds in 完了報告 and the results, then set this note to done / user",
                   "ja": "作業が完了しました。完了報告の根拠と結果を確認して done / user にしてください"}
+# The completion ask of a review task (SKILL.md 6.16); {ids} are the batch members it covers.
+REVIEW_ASK = {"en": "Check the results of {ids} in 完了報告, then set this note to done / user: those tasks become done / user with it",
+              "ja": "{ids} の成果を完了報告で確認して done / user にしてください。これらのタスクもまとめて done / user になります"}
 
 
 def note_lang(text):
@@ -1532,7 +1588,9 @@ def _sync_completion_actions(state, now):
         if not finished:
             task["user_actions"] = rest
         elif len(rest) == len(actions):
-            actions.append({"id": f"UA-{next_num:04d}", "description": COMPLETION_ASK[note_lang(task.get("request"))],
+            lang = note_lang(task.get("request"))
+            desc = REVIEW_ASK[lang].format(ids=", ".join(task["reviews"])) if task.get("reviews") else COMPLETION_ASK[lang]
+            actions.append({"id": f"UA-{next_num:04d}", "description": desc,
                             "since": now, "detector": "task_done"})
             next_num += 1
 
@@ -1556,6 +1614,9 @@ def next_state(current, candidate, now):
 
     _sync_waiting_start_actions(current, state, now)
     _sync_completion_actions(state, now)
+    errors = _batch_review_errors(current, state)
+    if errors:
+        raise StateError(errors)
     workers_by_id = {w["id"]: w for w in state["workers"]}
     for task in state["tasks"]:
         task["status"] = derive_status(task, workers_by_id)
@@ -1688,6 +1749,8 @@ def digest(state, state_path, limit=DIGEST_LIMIT, reference=None, prefix=""):
         )
         project = f"[{t['project_id']}] " if t.get("project_id") else ""
         after = f" | after {t['after']}" if t.get("after") else ""
+        after += f" | batch {t['batch']}" if t.get("batch") else ""
+        after += f" | reviews {', '.join(t['reviews'])}" if t.get("reviews") else ""
         task_lines.append(f"- {project}{t.get('id')} [{t.get('status')}] {t.get('title')} | next: {t.get('next_action')}{after} | workers: {ws}")
     lines += task_lines or ["- (none)"]
     text = "\n".join(lines)
@@ -3452,10 +3515,13 @@ def note_props(kind, item, workers_by_id):
         return ("in progress", "user") if item.get("user_actions") or item.get("done_proposed") else ("in progress", "agent")
     actions = item.get("user_actions", [])
     status = derive_status(item, workers_by_id)
-    # Completion is the user's to confirm, so the agent never writes done/agent: a finished task is done/user, and
-    # a task waiting only for the user to read held results is in progress/user until the user sets done/user.
+    # Completion is the user's to confirm: a finished task is done/user only once confirmed, and a task waiting only
+    # for the user to read held results is in progress/user until the user sets done/user. A batch member waiting
+    # only for its confirmation is done/agent: the user confirms it with the batch's review task (SKILL.md 6.16).
     if status == "done":
         return ("done", "user")
+    if _awaiting_review(item):
+        return ("done", "agent")
     return ("in progress", "user") if status == "needs_user" else ("in progress", "agent")
 
 

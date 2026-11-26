@@ -6191,6 +6191,99 @@ class VerifyFixesTest(unittest.TestCase):
         self.assertEqual((log.count("最初の記録"), log.count("二回目の記録")), (1, 1))
 
 
+class BatchReviewTest(unittest.TestCase):
+    """Tasks delegated together are confirmed through one review task (`batch` / `reviews`, SKILL.md 6.16)."""
+
+    def setUp(self):
+        self.env = VaultEnv(self)
+        self.env.add_task("T-0020", "w-0020", U1)["batch"] = "T-0020"
+        self.env.add_task("T-0021", "w-0021", U2)["batch"] = "T-0020"
+        find(self.env.state["workers"], "w-0021").update(cwd="/repo/b", branch="claude/b-x1", worktree_path="/repo/b/.claude/worktrees/b-x1")
+        self.env.save()
+
+    def finish(self, cand, task_id, worker_id):
+        find(cand["workers"], worker_id)["last_report"] = {"message_ref": "m1", "status": "done", "summary": "s",
+                                                            "next_action": "", "at": NOW}
+        find(cand["tasks"], task_id).update(kept=[worker_id], no_result=[{"worker_id": worker_id, "summary": "s", "at": NOW}])
+
+    def test_members_wait_as_done_agent_and_one_review_confirms_them(self):
+        cand = self.env.load()
+        self.finish(cand, "T-0020", "w-0020")
+        code, _, err = self.env.commit(cand, {U1: [REPORT_OP]})
+        self.assertEqual(code, 0, err)
+        # Step 2: commit writes done/agent; T-0021 still works, so no review task yet.
+        self.assertEqual(st._pair(self.env.values(U1)), ("done", "agent"))
+        self.assertEqual(self.env.scan(), {"events": [], "warnings": []})
+        cand = self.env.load()
+        self.finish(cand, "T-0021", "w-0021")
+        code, _, err = self.env.commit(cand, {U2: [REPORT_OP]})
+        self.assertEqual(code, 1)
+        self.assertIn("batch T-0020 is finished: create its review task", err)
+        # Step 3: the supervisor creates the review task in the same candidate.
+        reserved = json.loads(self.env.run("new-note", "--state", str(self.env.state_path), "--kind", "task")[1])
+        uid = reserved["uid"]
+        cand["tasks"].append({"id": "T-0022", "title": "成果確認", "request": "T-0020, T-0021 の成果確認",
+                              "next_action": "", "worker_ids": [], "user_actions": [], "reviews": ["T-0020", "T-0021"],
+                              "status": "waiting"})
+        to_v2(find(cand["tasks"], "T-0022"), "tasks", uid)
+        create = {"op": "create", "uid": uid, "title": "成果確認", "kind": "task", "status": "in progress",
+                  "assignee": "agent", "request": "T-0020, T-0021 の成果確認"}
+        code, _, err = self.env.commit(cand, {U2: [REPORT_OP], uid: [create]})
+        self.assertEqual(code, 1)
+        self.assertIn("add report_set", err)
+        code, _, err = self.env.commit(cand, {U2: [REPORT_OP], uid: [create, REPORT_OP]})
+        self.assertEqual(code, 0, err)
+        self.assertEqual(st._pair(self.env.values(U2)), ("done", "agent"))
+        self.assertEqual(st._pair(self.env.values(uid)), ("in progress", "user"))
+        self.assertIn(st.REVIEW_ASK["ja"].format(ids="T-0020, T-0021"), self.env.text(uid))
+        self.assertIn("reviews T-0020, T-0021", st.digest(self.env.load(), str(self.env.state_path)))
+        # Step 4: the user sets the review note to done/user.
+        self.env.put(uid, self.env.text(uid).replace('status: "in progress"', 'status: "done"'))
+        events = self.env.scan()["events"]
+        self.assertEqual([(e["uid"], e["event"], e["row"]) for e in events], [(uid, "confirm", 13)])
+        # Step 5: the supervisor records confirmed on the members it covers too; commit writes done/user.
+        cand = self.env.load()
+        find(cand["tasks"], "T-0022").update(confirmed={"at": NOW}, note_seen=events[0]["ack"])
+        code, _, err = self.env.commit(cand)
+        self.assertEqual(code, 1)
+        self.assertIn("record confirmed on T-0020, T-0021 too", err)
+        for tid, wid in (("T-0020", "w-0020"), ("T-0021", "w-0021")):
+            find(cand["tasks"], tid).update(confirmed={"at": NOW}, kept=[])
+            find(cand["workers"], wid).update(intended_state="archived", observed_state="archived")
+        code, _, err = self.env.commit(cand)
+        self.assertEqual(code, 0, err)
+        state = self.env.load()
+        self.assertEqual((state["tasks"], sorted(s["id"] for s in state["archived"])), ([], ["T-0020", "T-0021", "T-0022"]))
+        self.assertEqual([st._pair(self.env.values(u)) for u in (U1, U2, uid)], [("done", "user")] * 3)
+
+    def test_a_member_can_still_be_confirmed_or_reopened_alone(self):
+        cand = self.env.load()
+        self.finish(cand, "T-0020", "w-0020")
+        self.assertEqual(self.env.commit(cand, {U1: [REPORT_OP]})[0], 0)
+        done = self.env.text(U1)
+        self.env.put(U1, done.replace('assignee: "agent"', 'assignee: "user"'))
+        self.assertEqual([(e["event"], e["row"]) for e in self.env.scan()["events"]], [("confirm", 13)])
+        self.env.put(U1, done.replace('status: "done"', 'status: "backlog"'))
+        self.assertEqual([(e["event"], e["row"]) for e in self.env.scan()["events"]], [("follow_up", 16)])
+        # A member confirmed alone leaves the batch: the rest needs no review of it.
+        cand = self.env.load()
+        find(cand["tasks"], "T-0020")["confirmed"] = {"at": NOW}
+        self.finish(cand, "T-0021", "w-0021")
+        code, _, err = self.env.commit(cand, {U2: [REPORT_OP]})
+        self.assertEqual(code, 1)
+        self.assertIn("reviews ['T-0021']", err)
+
+    def test_batch_and_reviews_are_validated(self):
+        state = st.join_view(self.env.load(), {u: self.env.text(u) for u in (U1, U2)})
+        self.assertEqual(st.validate(state), [])
+        for key, bad, needle in (("batch", "x", "batch must be"), ("reviews", [], "reviews must be"),
+                                 ("reviews", ["T-0020"], "reviews must be"), ("reviews", ["T-0021", "T-0021"], "reviews must be"),
+                                 ("reviews", ["T-0021"], "a review task has no batch")):
+            bad_state = copy.deepcopy(state)
+            find(bad_state["tasks"], "T-0020")[key] = bad
+            self.assertTrue(any(needle in e for e in st.validate(bad_state)), (key, bad))
+
+
 SID = "0f8fad5b-d9cb-469f-a165-70867728950e"
 
 
