@@ -6,9 +6,8 @@ const TASK_SORT =
 	"\n    sort:\n      - property: formula.priority_rank\n        direction: ASC" +
 	"\n      - property: file.mtime\n        direction: DESC";
 const TASK_ORDER =
-	"[formula.title, summary, priority, subtasks, task_id, parent, created_at]";
-const PROJECT_ORDER =
-	"[formula.title, summary, project_id, assignee, created_at]";
+	"[formula.title, summary, priority, subtasks, task_id, parent]";
+const PROJECT_ORDER = "[formula.title, summary, project_id, assignee]";
 const NOT_PROJECT = `'!file.hasTag("project")'`;
 const assigneeIs = (who: string) => `'assignee == "${who}"'`;
 

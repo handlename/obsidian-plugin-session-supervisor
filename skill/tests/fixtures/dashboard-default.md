@@ -16,7 +16,7 @@ views:
     groupBy:
       property: status
       direction: ASC
-    order: [formula.title, summary, priority, subtasks, task_id, parent, created_at]
+    order: [formula.title, summary, priority, subtasks, task_id, parent]
     sort:
       - property: formula.priority_rank
         direction: ASC
@@ -44,7 +44,7 @@ views:
     groupBy:
       property: status
       direction: ASC
-    order: [formula.title, summary, priority, subtasks, task_id, parent, created_at]
+    order: [formula.title, summary, priority, subtasks, task_id, parent]
     sort:
       - property: formula.priority_rank
         direction: ASC
@@ -70,7 +70,7 @@ views:
     groupBy:
       property: status
       direction: ASC
-    order: [formula.title, summary, project_id, assignee, created_at]
+    order: [formula.title, summary, project_id, assignee]
     groupOrder: [backlog, in progress, pending, done, archived]
     hideEmptyGroups: false
 ```

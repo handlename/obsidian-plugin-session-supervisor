@@ -5680,10 +5680,14 @@ class SetupVaultTest(unittest.TestCase):
         self.assertNotIn("sort:", projects)
         self.assertNotIn("priority", projects)
         # The dashboard before 0.82 (no sort) is an earlier version that setup brings up to date.
-        self.assertIn(note.replace(st.TASK_SORT, "").replace(st.PRIORITY_FORMULA, "").replace(st.TASK_ORDER, st.KANBAN_ORDER),
+        old = note.replace(st.PROJECT_ORDER, st.PROJECT_ORDER_CREATED_AT)
+        self.assertIn(old.replace(st.TASK_SORT, "").replace(st.PRIORITY_FORMULA, "").replace(st.TASK_ORDER, st.KANBAN_ORDER),
                       st.legacy_supervisor_notes("_templates"))
         # So is the one whose task cards showed `project_id` instead of the `parent` link.
-        self.assertIn(note.replace(st.TASK_ORDER, st.TASK_ORDER_PROJECT_ID), st.legacy_supervisor_notes("_templates"))
+        self.assertIn(old.replace(st.TASK_ORDER, st.TASK_ORDER_PROJECT_ID), st.legacy_supervisor_notes("_templates"))
+        # And the one whose cards showed `created_at`.
+        self.assertIn(old.replace(st.TASK_ORDER, st.TASK_ORDER_CREATED_AT), st.legacy_supervisor_notes("_templates"))
+        self.assertNotIn("created_at", note)
 
     def test_creates_the_vault_once(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -5697,9 +5701,9 @@ class SetupVaultTest(unittest.TestCase):
             self.assertIn("""'assignee == "agent"'""", dashboard)
             self.assertEqual(dashboard.count("""'!file.hasTag("project")'"""), 2)
             self.assertIn("## プロジェクト", dashboard)
-            self.assertIn("order: [formula.title, summary, project_id, assignee, created_at]", dashboard)
+            self.assertIn("order: [formula.title, summary, project_id, assignee]\n", dashboard)
             self.assertIn("groupOrder: [backlog, in progress, pending, done, archived]", (vault / "Supervisor.md").read_text(encoding="utf-8"))
-            self.assertEqual(dashboard.count("order: [formula.title, summary, priority, subtasks, task_id, parent, created_at]"), 2)
+            self.assertEqual(dashboard.count("order: [formula.title, summary, priority, subtasks, task_id, parent]\n"), 2)
             self.assertIn('file.hasTag("supervised")', dashboard)
             self.assertEqual(list(vault.rglob("sv-*")), [])
             self.assertFalse((vault / ".obsidian").exists())
