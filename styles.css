@@ -18,7 +18,9 @@
    block ids (`^sv-log-1`) disappear except on the line the cursor is on, so they stay editable.
    Reading view already hides both; comment tokens inside code blocks are left alone.
 
-   And it widens the title input of the "タイトルとプロジェクトを設定" dialog to the rest of its row. */
+   And it widens the title input of the "タイトルとプロジェクトを設定" dialog to the rest of its row.
+
+   And in supervised notes only, it keeps the properties block at the top and shows a few properties. */
 
 :root {
   --sv-kanban-line: 20px;
@@ -84,4 +86,31 @@
 
 .sv-note-title textarea {
   flex: 1;
+}
+
+/* Supervised notes (views marked sv-supervised by the plugin): keep the properties block at the top
+   while scrolling and show only title / status / assignee / parent / priority; everything else appears on hover. */
+
+.sv-supervised .metadata-container {
+  position: sticky;
+  /* Sticky stops at the scroller's top padding; pull it up to the very edge. */
+  top: calc(-1 * var(--file-margins-y));
+  z-index: 10;
+  background: var(--background-primary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  margin-bottom: 0;
+}
+
+/* Reading view wraps the block in .mod-header (only as tall as the header),
+   which would end the sticky range right after the title. */
+.sv-supervised .markdown-reading-view .mod-header {
+  display: contents;
+}
+
+.sv-supervised .metadata-container:not(:hover) :is(
+  .metadata-property:not([data-property-key="title"], [data-property-key="status"], [data-property-key="assignee"], [data-property-key="parent"], [data-property-key="priority"]),
+  .metadata-properties-heading,
+  .metadata-add-button
+) {
+  display: none;
 }

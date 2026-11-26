@@ -1,5 +1,9 @@
 import { Plugin } from "obsidian";
-import { changeStatus, setTitleAndProject } from "./commands";
+import {
+	changeStatus,
+	markSupervisedViews,
+	setTitleAndProject,
+} from "./commands";
 import { SetupSettingTab } from "./setup";
 import { extractSkill } from "./skill";
 
@@ -16,6 +20,13 @@ export default class SessionSupervisorPlugin extends Plugin {
 			callback: () => setTitleAndProject(this.app),
 		});
 		this.addSettingTab(new SetupSettingTab(this.app, this));
-		this.app.workspace.onLayoutReady(() => extractSkill(this));
+		const mark = () => markSupervisedViews(this.app);
+		this.registerEvent(this.app.workspace.on("layout-change", mark));
+		this.registerEvent(this.app.workspace.on("file-open", mark));
+		this.registerEvent(this.app.metadataCache.on("changed", mark));
+		this.app.workspace.onLayoutReady(() => {
+			mark();
+			extractSkill(this);
+		});
 	}
 }

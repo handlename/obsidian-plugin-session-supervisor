@@ -205,3 +205,14 @@ export async function setTitleAndProject(app: App): Promise<void> {
 		await app.vault.createFolder(folder);
 	await app.fileManager.renameFile(file, dest);
 }
+
+/** Marks every open Markdown view of a supervised note with `sv-supervised`, which styles.css scopes its property rules to. */
+export function markSupervisedViews(app: App): void {
+	for (const leaf of app.workspace.getLeavesOfType("markdown")) {
+		const view = leaf.view as MarkdownView;
+		view.containerEl.toggleClass(
+			"sv-supervised",
+			Boolean(view.file && tagsOf(fmOf(app, view.file)).includes("supervised")),
+		);
+	}
+}

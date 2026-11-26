@@ -222,3 +222,37 @@ describe("setTitleAndProject", () => {
 		expect(others[1].fm.tags).toEqual(["supervised"]);
 	});
 });
+
+describe("markSupervisedViews", () => {
+	it("marks only the views of supervised notes", async () => {
+		const { markSupervisedViews } = await import("../src/commands");
+		const toggled: [string, boolean][] = [];
+		const view = (name: string, fm: Fm | null) => ({
+			view: {
+				file: fm && fakeFile(name, fm),
+				containerEl: {
+					toggleClass: (_c: string, on: boolean) => toggled.push([name, on]),
+				},
+			},
+		});
+		const app = {
+			workspace: {
+				getLeavesOfType: () => [
+					view("task.md", { tags: ["supervised", "task"] }),
+					view("memo.md", { tags: ["memo"] }),
+					view("empty", null),
+				],
+			},
+			metadataCache: {
+				getFileCache: (f: { fm: Fm }) => ({ frontmatter: f.fm }),
+			},
+		};
+		// biome-ignore lint/suspicious/noExplicitAny: a minimal fake of App
+		markSupervisedViews(app as any);
+		expect(toggled).toEqual([
+			["task.md", true],
+			["memo.md", false],
+			["empty", false],
+		]);
+	});
+});

@@ -7,6 +7,7 @@ The plugin:
 - embeds the skill (`skill/`) in `main.js` and extracts it to `<vault>/.obsidian/plugins/session-supervisor/skill/` in the desktop app,
 - provides commands to change a note's status and to set its title and project,
 - styles the kanban dashboard (`styles.css`),
+- keeps the properties block of supervised notes at the top and shows only title, status, assignee, parent, and priority until hovered (`styles.css`),
 - creates the dashboard from its settings tab (**Setup**).
 
 ## Install
