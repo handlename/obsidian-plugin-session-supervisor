@@ -867,6 +867,10 @@ def _shape_errors(state):
             errors.append(f"task {t['id']}: push_consent must be an object or null")
         elif consent is not None and "message" in consent and not (isinstance(consent["message"], str) and consent["message"]):
             errors.append(f"task {t['id']}: push_consent.message must be a non-empty string when present")
+        elif consent is not None and "action" in consent and not (
+                isinstance(consent["action"], str) and consent["action"].startswith("AA-") and UA_ID_RE.match(consent["action"])
+                and "message" in consent):
+            errors.append(f"task {t['id']}: push_consent.action must be an AA-NNNN id, with message")
         cancel = t.get("cancel")
         if cancel is not None and not (isinstance(cancel, dict) and all(isinstance(cancel.get(k), str) and cancel.get(k) for k in ("at", "reason"))):
             errors.append(f"task {t['id']}: cancel must be null or {{at, reason}} with non-empty strings")
@@ -1353,10 +1357,13 @@ def _deletion_errors(current, candidate):
     return errors
 
 
-def _needs_push_decision(task, w):
+def _needs_push_decision(task, w, workers=()):
+    # A push worker of the same task and branch carries the push the decision would decide (consent from an action).
+    pushing = any(x["id"] != w["id"] and x.get("task_id") == task.get("id") and x.get("delivery") == "push_pr"
+                  and x.get("branch") == w.get("branch") and x.get("intended_state") != "archived" for x in workers)
     return (w["delivery"] == "commit" and not task.get("cancel") and w["observed_state"] != "missing"
             and not w.get("replaced_by") and w["id"] not in _no_result_ids(task) and not _pushed_at_head(task, w)
-            and not any(_is_push_decision(ua, w) for ua in task.get("user_actions", [])))
+            and not pushing and not any(_is_push_decision(ua, w) for ua in task.get("user_actions", [])))
 
 
 def _transition_errors(current, candidate):
@@ -1367,7 +1374,7 @@ def _transition_errors(current, candidate):
     for t in candidate["tasks"]:
         for wid in t.get("kept", []):
             w = next((x for x in candidate["workers"] if x["id"] == wid), None)
-            if wid not in cur_kept and w is not None and _needs_push_decision(t, w):
+            if wid not in cur_kept and w is not None and _needs_push_decision(t, w, candidate["workers"]):
                 errors.append(f"worker {wid}: keeping a commit delivery worker requires a push-decision user_action")
     for w in candidate["workers"]:
         if w["intended_state"] != "archived":
@@ -1383,7 +1390,7 @@ def _transition_errors(current, candidate):
             errors.append(f"worker {w['id']}: archive requested without supervisor.archive_consent")
         task = tasks.get(w["task_id"], {})
         # A kept worker got its push decision when it was kept; the user may have resolved it since.
-        if w["id"] not in cur_kept and _needs_push_decision(task, w):
+        if w["id"] not in cur_kept and _needs_push_decision(task, w, candidate["workers"]):
             errors.append(f"worker {w['id']}: commit delivery archive requires a push-decision user_action")
     return errors + _project_transition_errors(current, candidate)
 
@@ -1433,14 +1440,19 @@ def _consent_request_errors(current, candidate):
 
 
 def _consent_message_errors(current, candidate):
-    # A consent given after intake is accepted only while it resolves a pending push decision.
+    # A consent given after intake is accepted only while it resolves a pending push decision, or when it is the
+    # user's own text of an agent action of the task (its request or a follow-up in its thread).
     errors = []
     cur_tasks = {t["id"]: t for t in current["tasks"]}
     cur_workers = {w["id"]: w for w in current["workers"]}
     for task in candidate["tasks"]:
-        message = (task.get("push_consent") or {}).get("message")
+        consent = task.get("push_consent") or {}
+        message = consent.get("message")
         cur = cur_tasks.get(task["id"], {})
         if message is None or message == (cur.get("push_consent") or {}).get("message"):
+            continue
+        if cur and any(aa.get("id") == consent.get("action") and message in aa.get("texts", [])
+                       for aa in task.get("agent_actions", []) + cur.get("agent_actions", [])):
             continue
         git_workers = [cur_workers[wid] for wid in cur.get("worker_ids", []) if cur_workers.get(wid, {}).get("kind") == "git"]
         pending = {ua["id"] for ua in cur.get("user_actions", []) if any(_is_push_decision(ua, w) for w in git_workers)}
@@ -3226,8 +3238,11 @@ def _view_user_actions(section_text):
 
 
 def _view_agent_actions(section_text):
-    """Open numbered requests to the agent (AA-NNNN). split_view acks them when the task leaves the view."""
-    return [{"id": ua["id"], "description": ua["description"], "since": ua["since"]}
+    """Open numbered requests to the agent (AA-NNNN). split_view acks them when the task leaves the view.
+    texts are the user's words in each: its heading, its request, and the follow-ups of its thread (a push consent
+    may quote one)."""
+    return [{"id": ua["id"], "description": ua["description"], "since": ua["since"],
+             "texts": [t for t in [ua["description"], ua["body"]] + [m["text"] for m in ua["thread"] if m["from"] == "user"] if t]}
             for ua in parse_user_actions(section_text or "") if ua["kind"] == "req" and ua["id"] and ua_open(ua)]
 
 

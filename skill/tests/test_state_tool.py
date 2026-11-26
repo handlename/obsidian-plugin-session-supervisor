@@ -797,6 +797,49 @@ class NextStateTest(unittest.TestCase):
         for bad in (["push"], 1, ""):
             self.assertRejected(self.push_worker_candidate(message=bad), "push_consent.message must be a non-empty string")
 
+    def action_consent(self, cand, message="lint を直して push して", texts=None, action="AA-0050"):
+        task = find(cand["tasks"], "T-0020")
+        task["push_consent"] = {"text": "push して", "at": NOW, "message": message, "action": action}
+        task["agent_actions"] = [{"id": "AA-0050", "description": "lint", "since": NOW,
+                                  "texts": [message] if texts is None else texts}]
+        return task
+
+    def test_consent_from_agent_action_reuses_worker_without_push_decision(self):
+        git_task(self.current, "T-0020", "w-0020", intended="running", observed="idle")
+        cand = self.candidate()
+        commit_artifacts(cand, "T-0020")
+        self.action_consent(cand)
+        find(cand["workers"], "w-0020")["delivery"] = "push_pr"
+        new = st.next_state(self.current, cand, NOW)
+        self.assertEqual(find(new["tasks"], "T-0020")["push_consent"]["action"], "AA-0050")
+
+    def test_consent_from_agent_action_with_new_push_worker_keeps_original(self):
+        git_task(self.current, "T-0020", "w-0020", intended="running", observed="idle")
+        cand = self.candidate()
+        commit_artifacts(cand, "T-0020")
+        task = self.action_consent(cand)
+        task["kept"] = ["w-0020"]
+        find(cand["workers"], "w-0020")["last_report"] = {"message_ref": "m1", "status": "done", "summary": "s",
+                                                           "next_action": "", "at": NOW}
+        cand["workers"].append(dict(find(cand["workers"], "w-0020"), id="w-0021", session_id=None, delivery="push_pr",
+                                    worktree_path=None, intended_state="pending", observed_state="none"))
+        task["worker_ids"].append("w-0021")
+        st.next_state(self.current, cand, NOW)
+
+    def test_consent_from_agent_action_must_quote_its_text(self):
+        git_task(self.current, "T-0020", "w-0020", intended="running", observed="idle")
+        for kw in ({"texts": ["lint を直して"]}, {"action": "AA-0051"}):
+            cand = self.candidate()
+            commit_artifacts(cand, "T-0020")
+            self.action_consent(cand, **kw)
+            find(cand["workers"], "w-0020")["delivery"] = "push_pr"
+            self.assertRejected(cand, "only while resolving a pending push decision")
+
+    def test_consent_action_must_be_an_agent_action_id(self):
+        cand = self.candidate()
+        find(cand["tasks"], "T-0003")["push_consent"].update(message="push して", action="UA-0001")
+        self.assertRejected(cand, "push_consent.action must be an AA-NNNN id")
+
     def test_switching_running_commit_worker_with_message_rejected(self):
         git_task(self.current, "T-0020", "w-0020", intended="running", observed="running")
         cand = self.candidate()
@@ -4089,6 +4132,10 @@ class ActionNumberTest(unittest.TestCase):
         unnumbered = st.apply_note_ops(notes["u1"], [], NOTE_NOW, 3)[0].replace("## サブタスク", "### @agent 番号なし\n\n## サブタスク")
         self.assertEqual([u["id"] for u in find(st.join_view(state, dict(notes, u1=unnumbered))["tasks"], "T-0020")["agent_actions"]],
                          ["AA-0002", "AA-0005"])
+        follow = st.apply_note_ops(notes["u1"], [{"op": "ua_answer", "id": "AA-0002", "text": "受けました"}], NOTE_NOW, 3)[0]
+        follow = follow.replace("受けました\n>\n", "受けました\n>\n\npush もして\n", 1)
+        texts = find(find(st.join_view(state, dict(notes, u1=follow))["tasks"], "T-0020")["agent_actions"], "AA-0002")["texts"]
+        self.assertEqual(texts, ["r", "push もして"])
         self.assertTrue(st.journal_reflected(notes["u1"], {"new_ids": ["aa-0005"]}, 99))
         self.assertIs(task["uid"], "u1")
 
@@ -4287,7 +4334,8 @@ class ViewTest(unittest.TestCase):
         task = find(view["tasks"], "T-0020")
         self.assertEqual((task["title"], task["request"]), ("task 20261110_090000", "fix the LICENSE year"))
         self.assertEqual([ua["id"] for ua in task["user_actions"]], ["UA-0001", "UA-0003"])
-        self.assertEqual(task["agent_actions"], [{"id": "AA-0002", "description": "CHANGELOG も直す", "since": NOTE_NOW}])
+        self.assertEqual(task["agent_actions"], [{"id": "AA-0002", "description": "CHANGELOG も直す", "since": NOTE_NOW,
+                                                    "texts": ["CHANGELOG も直す"]}])
         self.assertTrue(task["user_actions"][0]["needs_answer"])
         self.assertEqual(task["user_actions"][1]["follow_up"],
                          {"rule": "review-pr", "url": "https://github.com/org/repo-a/pull/42", "done": "pr_closed"})
