@@ -88,6 +88,8 @@ LOG_SECTION = "ログ"
 KN_SECTION = "知見"
 REPORT_SECTION = "完了報告"
 DONE_WHEN_SECTION = "完了条件"
+# A project note gets these sections only when something is written into them (_ensure_section).
+PROJECT_OMITTED_SECTIONS = (REPORT_SECTION, DONE_WHEN_SECTION, ST_SECTION, UA_SECTION, ART_SECTION)
 KN_KEY_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 UA_KINDS = ("ask", "auto", "req")
 UA_DETECTORS = ("worker_report", "worker_started", "archived_observed", "approval_cleared", "pr_closed",
@@ -2205,7 +2207,7 @@ def new_note_text(uid, title, kind, status, assignee, now, request="", parent=No
     if original and original.strip("\n"):
         content = "\n\n".join(c for c in (content, "\n".join([QUOTE_HEAD] + _quote(original.strip("\n")))) if c)
     sections = [f"## {name}\n\n{content}\n" if name == "概要" and content else f"## {name}\n\n" for name in NOTE_SECTIONS
-                if name not in ((KN_SECTION,) if kind == "task" else (REPORT_SECTION, DONE_WHEN_SECTION))]
+                if name not in ((KN_SECTION,) if kind == "task" else PROJECT_OMITTED_SECTIONS)]
     body = "\n".join(sections[:1] + [PROJECT_TASKS_SECTION] * (kind == "project") + sections[1:])
     return f"---\n{head}---\n{body}"
 

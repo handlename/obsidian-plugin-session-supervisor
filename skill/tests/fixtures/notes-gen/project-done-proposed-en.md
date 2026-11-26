@@ -79,9 +79,6 @@ views:
 ## 知見
 
 
-## サブタスク
-
-
 ## アクション
 
 ### [UA-0004] @user Confirm that the project is done: 終わりました
@@ -92,10 +89,6 @@ views:
 
 - [ ] 完了にする
 
-
-
-
-## 成果物
 
 
 ## 関連ノート

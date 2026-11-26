@@ -3621,8 +3621,7 @@ class NoteTemplateTest(unittest.TestCase):
         self.assertNotIn("parent", props)
         self.assertNotIn("follows", props)
         sections = st.parse_sections(st.parse_frontmatter(text)[1])
-        self.assertEqual(list(sections), ["概要", "タスク", *[n for n in st.NOTE_SECTIONS[1:]
-                                                          if n not in (st.REPORT_SECTION, st.DONE_WHEN_SECTION)]])
+        self.assertEqual(list(sections), ["概要", "タスク", "知見", "関連ノート", "関連資料", "ログ"])
         self.assertIn("    - 'parent == this'\n", sections["タスク"])
         self.assertNotIn("inFolder", sections["タスク"])
         self.assertEqual(sections["タスク"].count(st.TASK_SORT + "\n"), 2)
