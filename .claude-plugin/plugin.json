@@ -1,7 +1,7 @@
 {
 	"name": "session-supervisor",
 	"displayName": "Session Supervisor",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"description": "Thin session-supervisor skill that reads the skill body extracted into the vault by the Session Supervisor Obsidian plugin.",
 	"author": {
 		"name": "NAGATA Hiroaki"
